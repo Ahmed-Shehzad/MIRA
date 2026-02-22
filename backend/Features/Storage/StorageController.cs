@@ -19,7 +19,7 @@ public class StorageController : ControllerBase
         _handler = handler;
     }
 
-    /// <summary>Get presigned upload URL. Production only (S3 configured). Per high_level_platform.md.</summary>
+    /// <summary>Get presigned upload URL. Production only (S3 configured). Per DOCUMENTATION.md.</summary>
     [HttpPost("upload-url")]
     [ProducesResponseType(typeof(PresignedUrlResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status503ServiceUnavailable)]

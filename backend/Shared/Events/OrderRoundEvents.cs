@@ -23,7 +23,7 @@ public record PaymentCompletedEvent(
     string UserId,
     decimal Amount);
 
-/// <summary>WSI analysis job requested. Consumed by saga. Per high_level_platform.md Phase 1 MVP.</summary>
+/// <summary>WSI analysis job requested. Consumed by saga. Per DOCUMENTATION.md Phase 1 MVP.</summary>
 public record WsiAnalysisRequestedEvent(
     Guid JobId,
     Guid UploadId,

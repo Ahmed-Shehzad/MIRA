@@ -12,7 +12,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace HiveOrders.Api.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20260222160000_AddWsiTables")]
+    [Migration("20260222160100_AddWsiTables")]
     partial class AddWsiTables
     {
         /// <inheritdoc />

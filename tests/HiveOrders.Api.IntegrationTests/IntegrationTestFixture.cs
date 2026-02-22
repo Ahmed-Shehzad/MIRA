@@ -27,6 +27,7 @@ public sealed class IntegrationTestFixture : IAsyncLifetime
         Environment.SetEnvironmentVariable("Jwt__Key", HiveOrdersWebApplicationFactory.TestJwtKey);
         Environment.SetEnvironmentVariable("Jwt__Issuer", "HiveOrders");
         Environment.SetEnvironmentVariable("Jwt__Audience", "HiveOrders");
+        Environment.SetEnvironmentVariable("AWS__Region", "us-east-1");
         _factory = new HiveOrdersWebApplicationFactory();
     }
 

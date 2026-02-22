@@ -9,7 +9,7 @@ interface WsiViewerProps {
 const PLACEHOLDER_TILE_SOURCE = 'https://openseadragon.github.io/example-images/highsmith/highsmith.dzi';
 
 /**
- * OpenSeadragon WSI viewer. Per high_level_platform.md Phase 1 MVP – out-of-the-box.
+ * OpenSeadragon WSI viewer. Per DOCUMENTATION.md Phase 1 MVP – out-of-the-box.
  * Requires tile source (IIIF/DZI) or image URL. Without tile server, shows placeholder.
  */
 export function WsiViewer({ tileSourceUrl, className = '' }: Readonly<WsiViewerProps>) {

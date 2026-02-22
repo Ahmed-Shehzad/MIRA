@@ -31,12 +31,15 @@ export function WsiViewerPage() {
         {upload.widthPx && upload.heightPx && (
           <> · {upload.widthPx}×{upload.heightPx} px</>
         )}
+        {upload.status && (
+          <> · Status: {upload.status}</>
+        )}
       </p>
       <div className="mb-4">
         <button
           type="button"
           onClick={() => triggerMutation.mutate()}
-          disabled={triggerMutation.isPending}
+          disabled={triggerMutation.isPending || upload.status !== 'Ready'}
           className="rounded-md bg-green-600 px-4 py-2 font-medium text-white hover:bg-green-700 disabled:opacity-50"
         >
           {triggerMutation.isPending ? 'Triggering...' : 'Trigger Analysis'}

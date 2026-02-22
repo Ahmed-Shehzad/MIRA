@@ -52,12 +52,12 @@ public class WsiAnalysisWorkerConsumer : IConsumer<WsiAnalysisRequestedEvent>
         {
             try
             {
-                var meta = await _s3.GetObjectMetadataAsync(bucketName, msg.S3Key, cancellationToken);
-                _logger.LogDebug("WSI object exists: {Key}, size {Size}", msg.S3Key, meta.ContentLength);
+                await _s3.GetObjectMetadataAsync(bucketName, msg.S3Key, cancellationToken);
             }
             catch (AmazonS3Exception ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
             {
-                _logger.LogWarning("WSI object not found: {Bucket}/{Key}", bucketName, msg.S3Key);
+                _logger.LogWarning("WSI object not found: {Bucket}/{Key}. Failing job.", bucketName, msg.S3Key);
+                throw new InvalidOperationException("S3 object not found. Upload may have failed or been deleted.");
             }
         }
 

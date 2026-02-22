@@ -7,4 +7,3 @@
 **/.env.*
 **/Dockerfile*
 **/docker-compose*
-README.md

@@ -41,7 +41,8 @@ builder.Host.UseSerilog((context, services, configuration) =>
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
     ?? throw new InvalidOperationException("ConnectionStrings:DefaultConnection not configured");
 
-var awsRegion = builder.Configuration["AWS:Cognito:Region"] ?? builder.Configuration["AWS:Region"] ?? "us-east-1";
+var awsRegion = builder.Configuration["AWS:Cognito:Region"] ?? builder.Configuration["AWS:Region"];
+if (string.IsNullOrWhiteSpace(awsRegion)) awsRegion = "us-east-1";
 builder.Services.AddAWSService<IAmazonCognitoIdentityProvider>(new AWSOptions { Region = RegionEndpoint.GetBySystemName(awsRegion) });
 
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
@@ -83,6 +84,7 @@ builder.Services.AddSingleton<IApiGatewayWebSocketPushService, ApiGatewayWebSock
 builder.Services.AddSingleton<INotificationHubClient, NotificationHubClient>();
 builder.Services.AddScoped<CreateRoundsFromTemplatesJob>();
 builder.Services.AddScoped<DeadlineReminderJob>();
+builder.Services.AddScoped<WsiOrphanCleanupJob>();
 
 builder.Services.AddHangfire(config => config
     .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
@@ -139,6 +141,10 @@ using (var scope = app.Services.CreateScope())
         "deadline-reminders",
         job => job.ExecuteAsync(CancellationToken.None),
         "*/15 * * * *");
+    recurringJobManager.AddOrUpdate<WsiOrphanCleanupJob>(
+        "wsi-orphan-cleanup",
+        job => job.ExecuteAsync(CancellationToken.None),
+        Cron.Daily);
 }
 
 if (app.Environment.IsDevelopment())

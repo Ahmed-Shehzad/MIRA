@@ -75,6 +75,26 @@ new aws.s3.BucketPublicAccessBlock(name("uploads-block"), {
   restrictPublicBuckets: true,
 });
 
+const uploadsCorsOrigins =
+  stackConfig.domainName && stackConfig.frontendSubdomain
+    ? [
+        `https://${stackConfig.frontendSubdomain}.${stackConfig.domainName}`,
+        `https://www.${stackConfig.domainName}`,
+      ]
+    : ["http://localhost:5173", "http://localhost:3000", "http://127.0.0.1:5173"];
+new aws.s3.BucketCorsConfigurationV2(name("uploads-cors"), {
+  bucket: uploadsBucket.id,
+  corsRules: [
+    {
+      allowedHeaders: ["*"],
+      allowedMethods: ["PUT", "GET", "HEAD"],
+      allowedOrigins: uploadsCorsOrigins,
+      exposeHeaders: ["ETag"],
+      maxAgeSeconds: 3600,
+    },
+  ],
+});
+
 new aws.s3.BucketPublicAccessBlock(name("frontend-block"), {
   bucket: frontendBucket.id,
   blockPublicAcls: true,

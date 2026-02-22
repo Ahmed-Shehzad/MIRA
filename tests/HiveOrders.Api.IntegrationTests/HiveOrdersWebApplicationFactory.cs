@@ -27,7 +27,8 @@ public sealed class HiveOrdersWebApplicationFactory : WebApplicationFactory<Prog
                 ["Jwt:Issuer"] = "HiveOrders",
                 ["Jwt:Audience"] = "HiveOrders",
                 ["Testing:SkipRateLimiting"] = "true",
-                ["Testing:UseLocalJwt"] = "true"
+                ["Testing:UseLocalJwt"] = "true",
+                ["AWS:Region"] = "us-east-1"
             });
         });
 

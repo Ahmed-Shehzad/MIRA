@@ -4,7 +4,9 @@ using HiveOrders.Api.Shared.ValueObjects;
 
 namespace HiveOrders.Api.Features.Wsi;
 
-/// <summary>Whole Slide Image upload metadata. Per high_level_platform.md Phase 1 MVP.</summary>
+using static WsiUploadStatusValues;
+
+/// <summary>Whole Slide Image upload metadata. Per DOCUMENTATION.md Phase 1 MVP.</summary>
 public class WsiUpload
 {
     public WsiUploadId Id { get; set; }
@@ -32,6 +34,10 @@ public class WsiUpload
     public int? HeightPx { get; set; }
 
     public DateTimeOffset CreatedAt { get; set; }
+
+    [Required]
+    [MaxLength(16)]
+    public string Status { get; set; } = Uploading;
 
     public ICollection<WsiJob> Jobs { get; set; } = new List<WsiJob>();
 }

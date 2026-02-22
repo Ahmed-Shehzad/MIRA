@@ -15,7 +15,7 @@ public class StorageHandler : IStorageHandler
     public async Task<PresignedUrlResponse?> GetPresignedUploadUrlAsync(PresignedUrlRequest request, UserId userId, CancellationToken cancellationToken = default)
     {
         var key = $"uploads/{userId.Value}/{Guid.NewGuid():N}/{request.FileName}";
-        var url = await _s3Service.GetUploadUrlAsync(key, request.ContentType ?? "application/octet-stream", cancellationToken);
+        var url = await _s3Service.GetUploadUrlAsync(key, request.ContentType ?? "application/octet-stream", null, cancellationToken);
         return url == null ? null : new PresignedUrlResponse(url, key);
     }
 }

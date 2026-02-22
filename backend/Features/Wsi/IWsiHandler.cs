@@ -6,7 +6,7 @@ public interface IWsiHandler
 {
     Task<WsiPresignedUrlResponse?> GetPresignedUploadUrlAsync(WsiPresignedUrlRequest request, UserId userId, CancellationToken cancellationToken = default);
 
-    Task<WsiUploadResponse?> CreateUploadAsync(CreateWsiUploadRequest request, UserId userId, CancellationToken cancellationToken = default);
+    Task<WsiUploadResponse?> ConfirmUploadAsync(WsiUploadId id, UserId userId, CancellationToken cancellationToken = default);
     Task<WsiUploadResponse?> GetUploadAsync(WsiUploadId id, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<WsiUploadResponse>> GetUploadsAsync(UserId userId, CancellationToken cancellationToken = default);
     Task<WsiJobResponse?> TriggerAnalysisAsync(WsiUploadId uploadId, UserId userId, CancellationToken cancellationToken = default);

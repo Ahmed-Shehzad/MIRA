@@ -4,7 +4,7 @@ using HiveOrders.Api.Shared.ValueObjects;
 
 namespace HiveOrders.Api.Features.Wsi;
 
-/// <summary>WSI analysis job. Per high_level_platform.md Phase 1 MVP – manual analysis trigger.</summary>
+/// <summary>WSI analysis job. Per DOCUMENTATION.md Phase 1 MVP – manual analysis trigger.</summary>
 public class WsiJob
 {
     public WsiJobId Id { get; set; }

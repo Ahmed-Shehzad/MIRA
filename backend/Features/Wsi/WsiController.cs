@@ -19,9 +19,10 @@ public class WsiController : ControllerBase
         _handler = handler;
     }
 
-    /// <summary>Get presigned upload URL for WSI. Per high_level_platform.md Phase 1 MVP.</summary>
+    /// <summary>Get presigned upload URL for WSI. Creates Uploading record; client PUTs to S3 then calls confirm.</summary>
     [HttpPost("upload-url")]
     [ProducesResponseType(typeof(WsiPresignedUrlResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status503ServiceUnavailable)]
     public async Task<ActionResult<WsiPresignedUrlResponse>> GetUploadUrl(
         [FromBody] WsiPresignedUrlRequest request,
@@ -31,21 +32,30 @@ public class WsiController : ControllerBase
         if (userId == null) return Unauthorized();
 
         var response = await _handler.GetPresignedUploadUrlAsync(request, new UserId(userId), cancellationToken);
-        return response == null ? StatusCode(503, new { message = "S3 storage not configured" }) : Ok(response);
+        return response == null
+            ? StatusCode(503, new { code = "STORAGE_UNAVAILABLE", message = "S3 storage not configured" })
+            : Ok(response);
     }
 
-    /// <summary>Register WSI upload metadata after client uploads to S3.</summary>
-    [HttpPost("uploads")]
-    [ProducesResponseType(typeof(WsiUploadResponse), StatusCodes.Status201Created)]
-    public async Task<ActionResult<WsiUploadResponse>> CreateUpload(
-        [FromBody] CreateWsiUploadRequest request,
-        CancellationToken cancellationToken)
+    /// <summary>Confirm WSI upload after client has PUT to S3. Verifies object exists and sets status to Ready.</summary>
+    [HttpPost("uploads/{id:guid}/confirm")]
+    [ProducesResponseType(typeof(WsiUploadResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<WsiUploadResponse>> ConfirmUpload(Guid id, CancellationToken cancellationToken)
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (userId == null) return Unauthorized();
 
-        var response = await _handler.CreateUploadAsync(request, new UserId(userId), cancellationToken);
-        return CreatedAtAction(nameof(GetUpload), new { id = response!.Id }, response);
+        try
+        {
+            var response = await _handler.ConfirmUploadAsync(new WsiUploadId(id), new UserId(userId), cancellationToken);
+            return response == null ? NotFound() : Ok(response);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { code = "UPLOAD_NOT_FOUND", message = ex.Message });
+        }
     }
 
     /// <summary>Get WSI upload by ID.</summary>
@@ -70,17 +80,25 @@ public class WsiController : ControllerBase
         return Ok(uploads);
     }
 
-    /// <summary>Trigger analysis on a WSI. Per high_level_platform.md Phase 1 MVP – manual analysis trigger.</summary>
+    /// <summary>Trigger analysis on a WSI. Upload must be Ready (confirmed).</summary>
     [HttpPost("uploads/{id:guid}/analyze")]
     [ProducesResponseType(typeof(WsiJobResponse), StatusCodes.Status202Accepted)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<WsiJobResponse>> TriggerAnalysis(Guid id, CancellationToken cancellationToken)
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (userId == null) return Unauthorized();
 
-        var job = await _handler.TriggerAnalysisAsync(new WsiUploadId(id), new UserId(userId), cancellationToken);
-        return job == null ? NotFound() : AcceptedAtAction(nameof(GetJob), new { id = job.Id }, job);
+        try
+        {
+            var job = await _handler.TriggerAnalysisAsync(new WsiUploadId(id), new UserId(userId), cancellationToken);
+            return job == null ? NotFound() : AcceptedAtAction(nameof(GetJob), new { id = job.Id }, job);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { code = "UPLOAD_NOT_READY", message = ex.Message });
+        }
     }
 
     /// <summary>Get WSI job status.</summary>
@@ -94,5 +112,3 @@ public class WsiController : ControllerBase
     }
 }
 
-public record WsiPresignedUrlRequest(string FileName, string? ContentType);
-public record WsiPresignedUrlResponse(string Url, string Key);

@@ -2,13 +2,9 @@ using System.Text.Json.Serialization;
 
 namespace HiveOrders.Api.Features.Wsi;
 
-public record CreateWsiUploadRequest(
-    string S3Key,
-    string FileName,
-    string? ContentType,
-    [property: JsonRequired] long FileSizeBytes,
-    int? WidthPx,
-    int? HeightPx);
+public record WsiPresignedUrlRequest(string FileName, string? ContentType, [property: JsonRequired] long FileSizeBytes);
+
+public record WsiPresignedUrlResponse(string Url, string Key, Guid UploadId);
 
 public record WsiUploadResponse(
     Guid Id,
@@ -18,6 +14,7 @@ public record WsiUploadResponse(
     long FileSizeBytes,
     int? WidthPx,
     int? HeightPx,
+    string Status,
     DateTimeOffset CreatedAt);
 
 public record WsiJobResponse(

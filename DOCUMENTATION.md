@@ -1,11 +1,39 @@
 # MIRA – HIVE Food Ordering Coordination System
 
-**Combined documentation from all project .md files.**
+**Complete project documentation (wiki).**
 
-**Scope:** (1) Food ordering – order rounds, items, payments, recurring orders, Teams bot, notifications. (2) WSI platform – Whole Slide Image upload, analysis jobs, viewer. See [docs/README.md](docs/README.md) for the full document index.
+**Scope:** (1) Food ordering – order rounds, items, payments, recurring orders, Teams bot, notifications. (2) WSI platform – Whole Slide Image upload, analysis jobs, viewer. Both share the same backend (ASP.NET Core), database (PostgreSQL), auth (Cognito), and infrastructure (AWS).
 
 ---
 
+## Table of Contents
+
+| # | Section | Description |
+|---|---------|-------------|
+| 1 | [Setup & Run Guide](#part-0-detailed-setup--run-guide) | Docker, local dev, tests |
+| 2 | [Solution Rationale](#part-0-solution-rationale--why-this-tech-stack-architecture--approach) | Tech stack, architecture, trade-offs |
+| 3 | [Quick Start & Tech Stack](#readmemd) | Overview, setup, auth, health |
+| 4 | [Submission](#submissionmd) | Author, scope, deliverables |
+| 5 | [MVP Approach](#docsapproachmd) | Assumptions, vertical slices, event-driven |
+| 6 | [Future Features](#docsfuture_featuresmd) | Implemented features, roadmap |
+| 7 | [AWS Cloud Platform](#docshigh_level_platformmd) | WSI architecture, GPU inference, phases |
+| 7a | [Project Management](#24-project-management) | Prioritization, build vs buy, outsourcing, hiring |
+| 7b | [Vision & Next Steps](#25-vision--next-steps) | Long-term vision, immediate and medium-term actions |
+| 8 | [Production Configuration](#docsproduction-configmd) | Environment variables, config |
+| 9 | [Production Architecture](#production-architecture) | Deployment, CI/CD, EKS, scaling |
+| 10 | [System Architecture](#system-architecture) | Components, tools, implementation status |
+| 11 | [Scalable GPU Inference](#scalable-gpu-based-inference) | Scalability, cost, large images |
+| 12 | [Large File Handling](#large-file-handling) | WSI performance, bottlenecks |
+| 13 | [WSI GPU Worker](#wsi-gpu-worker--production-deployment) | .NET, Python, EKS deployment |
+| 14 | [Infrastructure (Pulumi)](#infrastructure-pulumi--aws) | IaC, stacks, post-deploy |
+| 15 | [EKS Kubernetes](#kubernetes-manifests-eks) | WSI worker manifests, IRSA |
+| 16 | [WSI Worker Service](#wsi-worker) | Configuration, inference modes |
+| 17 | [Frontend](#mira-frontend) | React SPA setup, build |
+| 18 | [UML Diagrams](#low-level-system-architecture--uml-diagrams) | Domain model, ER, sequence, process |
+
+---
+
+<a id="part-0-detailed-setup--run-guide"></a>
 # Part 0: Detailed Setup & Run Guide
 
 This section provides step-by-step instructions to get the HIVE Food Ordering system up and running.
@@ -39,7 +67,7 @@ docker compose up --build
 - **PostgreSQL** starts first (with health check). Database `hive_orders` is created with user `hive` / password `hive_dev`.
 - **LocalStack** starts for SQS/SNS (MassTransit event-driven messaging).
 - **MailHog** starts to capture outgoing emails (no real SMTP needed in dev).
-- **Backend** builds the .NET API, runs EF migrations, seeds groups and default tenant, then listens on port 5000.
+- **Backend** builds the .NET API, runs EF migrations on startup, seeds groups and default tenant, then listens on port 5000. No manual `dotnet ef database update` needed when using Docker Compose.
 - **Frontend** builds the React app and serves it (production build) on port 5173.
 
 ### Step 3: Verify Services
@@ -151,6 +179,7 @@ dotnet test HiveOrders.slnx
 
 ---
 
+<a id="part-0-solution-rationale--why-this-tech-stack-architecture--approach"></a>
 # Part 0: Solution Rationale – Why This Tech Stack, Architecture & Approach
 
 ## Problem Space
@@ -279,7 +308,7 @@ Given the requirements (lightweight, office-friendly, extensible, cloud-ready), 
 
 ### Production: high_level_platform.md Alignment
 
-Production follows [docs/high_level_platform.md](docs/high_level_platform.md) strictly. Fully managed AWS infrastructure:
+Production follows [AWS Cloud Platform](#2-high-level-task--aws-cloud-platform-for-digital-pathology-ai) strictly. Fully managed AWS infrastructure:
 
 | Component | AWS Service | Implementation |
 |-----------|-------------|----------------|
@@ -294,7 +323,7 @@ Production follows [docs/high_level_platform.md](docs/high_level_platform.md) st
 
 **System flow (production):** User logs in via Cognito → Upload via presigned S3 URL → Metadata in RDS → API publishes to SQS → Worker processes → Results in S3 → WebSocket/AppSync notifies frontend.
 
-**Optional:** Custom domain for frontend (`frontendSubdomain`), X-Ray tracing (`enableXRayTracing`), EKS IRSA for pod-level IAM, ECS auto-scaling (`apiScalingMin/Max`, `workerScalingMin/Max`). See [production-architecture.md](docs/production-architecture.md) and [production-config.md](docs/production-config.md).
+**Optional:** Custom domain for frontend (`frontendSubdomain`), X-Ray tracing (`enableXRayTracing`), EKS IRSA for pod-level IAM, ECS auto-scaling (`apiScalingMin/Max`, `workerScalingMin/Max`). See [Production Architecture](#production-architecture) and [Production Configuration](#docsproduction-configmd).
 
 ### Production Deployment (CI/CD)
 
@@ -302,7 +331,7 @@ Production follows [docs/high_level_platform.md](docs/high_level_platform.md) st
 
 **Infrastructure workflow** (`.github/workflows/deploy-infra.yml`): Runs `pulumi preview` on PRs when `infrastructure/**` changes; manual `pulumi up` via workflow_dispatch. Requires `PULUMI_ACCESS_TOKEN`, `AWS_ROLE_ARN`.
 
-**EKS worker:** When `enableEksGpu=true`, deploy worker manually after `pulumi up`: `kubectl apply` with manifests from `infrastructure/k8s/`. See [infrastructure/k8s/README.md](infrastructure/k8s/README.md).
+**EKS worker:** When `enableEksGpu=true`, deploy worker manually after `pulumi up`: `kubectl apply` with manifests from `infrastructure/k8s/`. See [EKS Kubernetes](#kubernetes-manifests-eks).
 
 **CloudFront custom domain:** ACM certs for CloudFront must be in **us-east-1**. Deploy stack in us-east-1 when using `frontendSubdomain`.
 
@@ -312,6 +341,7 @@ Production follows [docs/high_level_platform.md](docs/high_level_platform.md) st
 
 ---
 
+<a id="readmemd"></a>
 # README.md
 
 # HIVE Food Ordering Coordination System (MVP)
@@ -450,7 +480,7 @@ Frontend runs on:
 - Group-based authorization (Admins, Managers, Users)
 - SSO via Cognito Identity Providers (Google, Microsoft) – configure in Cognito User Pool
 
-See [docs/production-config.md](docs/production-config.md) for Cognito configuration.
+See [Production Configuration](#docsproduction-configmd) for Cognito configuration.
 
 ---
 
@@ -466,7 +496,7 @@ See Production Configuration section below for environment variables and secrets
 
 ## ☁️ Production Architecture (high_level_platform.md)
 
-Production follows [docs/high_level_platform.md](docs/high_level_platform.md) strictly. Fully managed AWS infrastructure:
+Production follows [AWS Cloud Platform](#2-high-level-task--aws-cloud-platform-for-digital-pathology-ai) strictly. Fully managed AWS infrastructure:
 
 | Component | AWS Service |
 |-----------|-------------|
@@ -480,10 +510,11 @@ Production follows [docs/high_level_platform.md](docs/high_level_platform.md) st
 | Email | Amazon SES |
 | Secrets | AWS Secrets Manager |
 
-See [docs/production-architecture.md](docs/production-architecture.md) and [docs/production-config.md](docs/production-config.md).
+See [Production Architecture](#production-architecture) and [Production Configuration](#docsproduction-configmd).
 
 ---
 
+<a id="submissionmd"></a>
 # SUBMISSION.md
 
 # MIRA Vision – HIVE Food Ordering Coordination System
@@ -505,17 +536,11 @@ This submission contains:
 
 3. **High-Level AWS Cloud Architecture for a Digital Pathology AI Platform**
 
-## Documentation Files
-
-- docs/approach.md
-- docs/future_features.md
-- docs/high_level_platform.md
-- docs/system-architecture-diagrams.md (UML: domain model, sequence, process, ER, state diagrams)
-- docs/production-config.md
-- README.md
+**All documentation is consolidated in this file.** Use the Table of Contents at the top to navigate.
 
 ---
 
+<a id="docsapproachmd"></a>
 # docs/approach.md
 
 # 1. Hands-On Task – MVP
@@ -783,6 +808,7 @@ See system-architecture-diagrams section below for domain model, ER, sequence, p
 
 ---
 
+<a id="docsfuture_featuresmd"></a>
 # docs/future_features.md
 
 # 1.2 Future Functionalities
@@ -834,8 +860,10 @@ Implemented: Email reminders before deadline (configurable minutes). In-app aler
 
 ---
 
+<a id="docshigh_level_platformmd"></a>
 # docs/high_level_platform.md
 
+<a id="2-high-level-task--aws-cloud-platform-for-digital-pathology-ai"></a>
 # 2. High-Level Task – AWS Cloud Platform for Digital Pathology AI
 
 Cloud-native AI platform for Whole Slide Image (WSI) analysis, built on AWS to ensure scalability, security, and compliance with medical data requirements.
@@ -1014,67 +1042,174 @@ WSIs are multi-resolution and very large. Viewers (e.g. [LazySlide](https://lazy
 
 ---
 
+<a id="24-project-management"></a>
 ## 2.4 Project Management
 
-### Prioritization (MVP Thinking)
+Assume it would be your responsibility to build such a platform within the features mentioned above and we have some resources available. Below is how the work would be split up.
 
-**Phase 1 – MVP**
+---
 
-- Authentication (Cognito)
-- Upload pipeline (S3 presigned URLs)
-- Single GPU worker
-- Basic WSI viewer (OpenSeadragon)
-- Manual analysis trigger
+### Which Parts to Build First (Prioritization / MVP Thinking)
 
-Goal: End-to-end working system.
+**Phase 1 – MVP (Food Ordering + WSI Foundation)**
 
-**Phase 2 – Scalability**
+| Order | Component | Rationale |
+|-------|-----------|-----------|
+| 1 | Auth (Cognito) | Unblocks all user-facing features; required for multi-tenant |
+| 2 | Core API + PostgreSQL | Backbone for order rounds, WSI metadata, jobs |
+| 3 | Food ordering (rounds, items) | Primary use case; validates vertical slice architecture |
+| 4 | Upload pipeline (S3 presigned URLs) | Enables WSI ingestion without overloading API |
+| 5 | Basic WSI viewer (OpenSeadragon) | Demonstrates end-to-end value; out-of-the-box |
+| 6 | Single GPU worker + manual analysis trigger | Proves inference pipeline; minimal complexity |
 
-- SQS queue
-- EKS auto-scaling
-- WebSocket/AppSync integration
-- Monitoring dashboards (CloudWatch)
-- CI/CD
+**Goal:** End-to-end working system – users can order food and run a WSI analysis.
 
-**Phase 3 – Advanced AI**
+**Phase 2 – Scalability & Reliability**
 
-- Multi-modal conversational interface
-- LLM integration
-- Annotation collaboration
+- SQS queue (decouple API from workers)
+- EKS auto-scaling for GPU workers
+- WebSocket/SignalR for real-time job status
+- Monitoring (CloudWatch, Serilog)
+- CI/CD (GitHub Actions → ECR, EKS)
+
+**Phase 3 – Advanced Features**
+
+- Teams bot, payments, recurring orders, notifications (food domain)
+- Multi-modal AI, LLM integration, annotation collaboration (WSI domain)
 - Compliance hardening (GDPR, HIPAA, MDR/IVDR)
 - Enterprise audit logging
 
 ---
 
-### Build vs Buy
+### Where to Use Out-of-the-Box Solutions
 
-| Area | Approach | Rationale |
-|------|----------|------------|
-| WSI viewer | OpenSeadragon (OSS) | Mature, pyramid support |
-| Auth | Cognito | Managed, compliant |
-| Storage | S3 | Managed object storage |
-| Inference runtime | Custom container | Model-specific |
-| Job queue | SQS | Managed messaging |
-| Annotation UI | Custom or integrate | Depends on clinical workflow |
-
----
-
-### Own vs Outsource vs Hire
-
-- **Own:** Architecture, API design, integration, orchestration, core backend
-- **Freelancers:** Frontend polish, one-off integrations, documentation, UI/UX
-- **Hired:** DevOps, ML infrastructure, security/compliance, clinical advisor
+| Area | Solution | Rationale |
+|------|----------|-----------|
+| **WSI viewer** | OpenSeadragon (OSS) | Mature, pyramid/tile support, no reinvention |
+| **Auth** | AWS Cognito | Managed, compliant, SSO, MFA |
+| **Storage** | S3 | Managed object storage, lifecycle, range requests |
+| **Job queue** | SQS (via MassTransit) | Managed messaging, retries, backpressure |
+| **Database** | RDS PostgreSQL | Managed, backups, multi-AZ |
+| **CDN** | CloudFront | Tile delivery, lower latency |
+| **Email** | Amazon SES | Managed, deliverability |
+| **Payments** | Stripe | PCI-compliant, webhooks |
+| **Teams bot** | Bot Framework / CloudAdapter | Microsoft-supported integration |
 
 ---
 
-### Hiring Strategy
+### Where to Build Custom Components
+
+| Area | Custom Build | Rationale |
+|------|--------------|-----------|
+| **Inference runtime** | Custom container (Python/.NET) | Model-specific, GPU scheduling, preprocessing |
+| **API orchestration** | ASP.NET Core backend | Domain logic, multi-tenant, event-driven workflows |
+| **Annotation UI** | Custom React components | Clinical workflow, regulatory requirements |
+| **Order round logic** | Domain handlers | Business rules, event sourcing |
+| **WSI tile generation** | Custom pipeline (if needed) | Proprietary formats, optimization |
+| **Multi-tenant data isolation** | Application-level | Row-level security, tenant context |
+
+---
+
+### Which Work I Would Perform Myself
+
+- **Architecture & design** – System boundaries, event flows, API contracts
+- **Core backend** – ASP.NET Core API, EF Core, MassTransit consumers, domain logic
+- **Integration orchestration** – Cognito, S3, SQS, Stripe, Teams
+- **Infrastructure as Code** – Pulumi/Terraform for AWS
+- **CI/CD pipelines** – GitHub Actions, Docker builds, EKS deployments
+- **Technical documentation** – Architecture, runbooks, API docs
+
+---
+
+### Which Parts to Outsource to Freelancers
+
+| Area | Scope | Rationale |
+|------|-------|-----------|
+| **Frontend polish** | UI/UX refinements, accessibility | Specialized skills; can be scoped in sprints |
+| **One-off integrations** | Third-party APIs, export formats | Well-defined contracts; low ongoing maintenance |
+| **Documentation** | User guides, how-to content | Non-technical writers; follows docs-how-to rules |
+| **Design assets** | Icons, illustrations, branding | Designers; deliverables are discrete |
+| **Localization** | i18n, translations | Translators; no code changes |
+
+---
+
+### Whether Hiring Someone with Specific Expertise Makes Sense
 
 | Role | When | Why |
 |------|------|-----|
-| DevOps / ML infrastructure | Early | CI/CD, GPU clusters, scaling |
-| Security / compliance | Before production | Medical data, regulations |
-| Frontend performance | When viewer UX is critical | Large images, responsiveness |
-| Clinical advisor | For validation | Workflow and clinical accuracy |
+| **DevOps / ML infrastructure** | Early (Phase 2) | CI/CD, GPU clusters, EKS scaling, IRSA, cost optimization |
+| **Security / compliance** | Before production | Medical data (WSI), GDPR, HIPAA, MDR/IVDR, audit trails |
+| **Frontend performance** | When viewer UX is critical | Large images, tile loading, WebGL, responsiveness |
+| **Clinical advisor** | For WSI validation | Workflow accuracy, clinical terminology, regulatory input |
+| **ML engineer** | Phase 3 (advanced AI) | Model training, fine-tuning, multi-modal pipelines |
+
+**Recommendation:** Hire DevOps/ML infrastructure early; security/compliance before go-live; clinical advisor for validation; frontend performance and ML engineer when scaling demands it.
+
+---
+
+<a id="25-vision--next-steps"></a>
+## 2.5 Vision & Next Steps
+
+### Vision
+
+**MIRA** aims to be a unified platform that serves two complementary domains:
+
+| Domain | Vision |
+|--------|--------|
+| **HIVE Food Ordering** | The default coordination hub for food orders across companies in HIVE Göppingen – simple, reliable, and embedded in daily workflows (web + Teams). Extensible to other coworking spaces. |
+| **WSI Digital Pathology** | A cloud-native AI platform for Whole Slide Image analysis – from upload to inference to visualization – enabling pathologists and labs to run AI-assisted diagnostics at scale, with compliance and enterprise integration. |
+
+**Unifying principles:**
+
+- **Single platform** – Shared backend, auth (Cognito), database (PostgreSQL), and AWS infrastructure
+- **Event-driven** – Decoupled workflows via SNS/SQS; scalable and resilient
+- **Compliance-first** – Designed for medical data (WSI) and multi-tenant isolation from day one
+- **Extensible** – Modular architecture for future features (multi-modal AI, HIS/EHR integration, mobile)
+
+**Long-term direction:**
+
+- **Food domain:** Recurring orders, richer Teams interactions, analytics, integration with local restaurants
+- **WSI domain:** Multi-modal AI (natural language + vision), annotation collaboration, regulatory certification (MDR/IVDR), enterprise SSO and audit trails
+
+---
+
+### Next Steps
+
+**Immediate (0–4 weeks)**
+
+| # | Action | Owner | Notes |
+|---|--------|-------|-------|
+| 1 | Harden production config | DevOps | Secrets in AWS Secrets Manager; RDS, S3, Cognito verified |
+| 2 | Enable CI/CD | DevOps | GitHub Actions → ECR, EKS/ECS; green pipeline on main |
+| 3 | WSI worker in EKS | Backend/DevOps | Deploy worker container; IRSA for S3/SQS; verify end-to-end analysis |
+| 4 | Real-time job status | Backend | SignalR or WebSocket for WSI job progress in UI |
+| 5 | Security review | Security | Auth flows, tenant isolation, logging of sensitive access |
+
+**Short-term (1–3 months)**
+
+| # | Action | Owner | Notes |
+|---|--------|-------|-------|
+| 6 | EKS auto-scaling | DevOps | GPU node groups; scale workers on queue depth |
+| 7 | CloudFront for WSI tiles | DevOps | CDN for tile delivery; lower latency |
+| 8 | Compliance documentation | Compliance | Data flows, retention, GDPR/HIPAA alignment |
+| 9 | Food: export improvements | Backend | PDF/Excel export; recurring order analytics |
+| 10 | WSI: annotation UI | Frontend | Region drawing, labels, save to backend |
+
+**Medium-term (3–6 months)**
+
+| # | Action | Owner | Notes |
+|---|--------|-------|-------|
+| 11 | Clinical validation | Clinical advisor | Workflow review; terminology; regulatory input |
+| 12 | Multi-modal AI (WSI) | ML engineer | LLM integration; natural language queries on slides |
+| 13 | HIS/EHR integration | Backend | HL7/FHIR; order ingestion; result push |
+| 14 | Mobile/PWA | Frontend | Offline-capable order rounds; push notifications |
+| 15 | Cost optimization | DevOps | Spot instances; reserved capacity; usage dashboards |
+
+**Ongoing**
+
+- Monitor CloudWatch metrics and DLQ; tune scaling and timeouts
+- Regular dependency updates (Dependabot); security patches
+- User feedback loops for both food and WSI workflows
 
 ---
 
@@ -1088,11 +1223,12 @@ Goal: End-to-end working system.
 
 ---
 
+<a id="docsproduction-configmd"></a>
 # docs/production-config.md
 
 # Production Configuration
 
-Production follows [high_level_platform.md](high_level_platform.md). Use environment variables or AWS Secrets Manager. Never commit secrets to source control.
+Production follows [AWS Cloud Platform](#2-high-level-task--aws-cloud-platform-for-digital-pathology-ai). Use environment variables or AWS Secrets Manager. Never commit secrets to source control.
 
 ## Required Environment Variables
 
@@ -1131,6 +1267,15 @@ Uses **MassTransit.AmazonSQS** and **AWS SDK** (both Apache 2.0, open source). M
 | `AWS__Scope` | Optional prefix for queue/topic names (e.g. `hive-orders`) |
 
 **IAM permissions** required: `sqs:*`, `sns:*` on the relevant resources. Prefer IAM roles (ECS task role, EC2 instance profile) over access keys.
+
+### S3 (Large File / WSI Uploads)
+
+| Variable | Description |
+|----------|-------------|
+| `AWS__S3__BucketName` | Uploads bucket name |
+| `AWS__S3__Region` | S3 region (or use `AWS__Region`) |
+| `AWS__S3__PresignedUrlExpirationMinutes` | Presigned URL expiry (default 60) |
+| `AWS__S3__MaxSinglePutBytes` | Max file size for single PUT (default 5 GB) |
 
 ### Development: LocalStack (SQS/SNS)
 
@@ -1249,8 +1394,218 @@ Auth endpoints are rate limited. Configure via:
 
 ---
 
-# docs/system-architecture-diagrams.md
+<a id="production-architecture"></a>
+# Production Architecture
 
+Production uses fully managed AWS infrastructure for scalability, security, and compliance.
+
+| Component | AWS Service | Purpose |
+|-----------|-------------|---------|
+| Auth | **Cognito** | User pools, MFA, compliance |
+| Storage | **S3** | Large binaries, presigned URLs |
+| Metadata | **RDS PostgreSQL** | Relational data, jobs, users |
+| Job Queue | **SQS** | Decouples API from workers |
+| Compute | **EKS** (or ECS Fargate) | API and workers |
+| Real-time | **AppSync** or **API Gateway WebSocket** | Push job status |
+| CDN | **CloudFront** | Static assets, tile delivery |
+| Monitoring | **CloudWatch**, **X-Ray** | Logs, metrics, tracing |
+
+**Deploy workflow** (`.github/workflows/deploy.yml`): Builds and deploys on push to `main`. **Secrets:** `AWS_ROLE_ARN`, `ECR_REGISTRY`, `ECS_CLUSTER`, `ECS_SERVICE`, `ECS_WORKER_CLUSTER`, `ECS_WORKER_SERVICE`, `S3_BUCKET_FRONTEND`, `CLOUDFRONT_DISTRIBUTION_ID`. ECR repos: `mira-api`, `mira-wsi-worker`.
+
+**Infrastructure** (`.github/workflows/deploy-infra.yml`): `pulumi preview` on PRs; manual `pulumi up` via workflow_dispatch. Requires `PULUMI_ACCESS_TOKEN`.
+
+**EKS worker:** When `enableEksGpu=true`, deploy manually after `pulumi up`. See [EKS Kubernetes](#kubernetes-manifests-eks).
+
+**Custom domains:** API and frontend via `domainName`, `hostedZoneId`, `apiSubdomain`, `frontendSubdomain`. CloudFront ACM certs must be in **us-east-1**.
+
+**Auto-scaling:** Set `apiScalingMin`/`apiScalingMax` and `workerScalingMin`/`workerScalingMax` in Pulumi for CPU-based ECS scaling (70%).
+
+**EKS IRSA:** When `enableEksGpu=true`, annotate service account: `kubectl annotate serviceaccount wsi-worker -n mira eks.amazonaws.com/role-arn=$(pulumi stack output eksWsiWorkerRoleArn) --overwrite`.
+
+---
+
+<a id="system-architecture"></a>
+# System Architecture
+
+Cloud-native platform for WSI analysis on AWS.
+
+| Component | Tool / Service |
+|-----------|----------------|
+| Client | React (TypeScript), OpenSeadragon |
+| Edge | CloudFront |
+| API | ASP.NET Core (.NET 10) |
+| Auth | AWS Cognito |
+| Storage | S3 |
+| Metadata | RDS PostgreSQL |
+| Job Queue | SQS |
+| Compute | EKS (or ECS Fargate) |
+| Real-time | SignalR / API Gateway WebSocket |
+| Monitoring | CloudWatch, X-Ray |
+
+**Implementation status:** Auth, upload pipeline, WSI metadata/jobs, manual analysis trigger, job queue (MassTransit/SQS), WSI viewer, GPU worker (mock in dev / .NET Worker in prod).
+
+---
+
+<a id="scalable-gpu-based-inference"></a>
+# Scalable GPU-Based Inference
+
+Inference is triggered when a customer requests analysis. Decoupled API and workers via SQS; EKS GPU node groups; auto-scaling (KEDA or custom); tile-based processing; HTTP range requests from S3. **Cost:** Spot instances, scale-to-zero, tiered storage. **User progress:** WebSocket/AppSync push, job status API, optional email.
+
+---
+
+<a id="large-file-handling"></a>
+# Large File Handling
+
+WSIs are multi-resolution and very large. Viewers load only the visible region. **User-side bottlenecks:** Bandwidth, concurrent request limits, client memory, prefetching. **Cloud bottlenecks:** S3 I/O, CloudFront cache hit rate, egress cost. **Mitigations:** HTTP range requests, tile pyramid, client LRU cache, CloudFront, WebGL (OpenSeadragon).
+
+## Implementation (Consistent Large File Handling)
+
+### Two-Phase Upload Flow
+
+1. **POST /api/v1/wsi/upload-url** – Request presigned URL with `fileName`, `contentType`, `fileSizeBytes`. API creates `WsiUpload` with `Status=Uploading`, returns `{ url, key, uploadId }`.
+2. **Client PUT** – Upload file directly to S3 using presigned URL.
+3. **POST /api/v1/wsi/uploads/{id}/confirm** – API verifies object exists (HeadObject), sets `Status=Ready`, returns upload.
+
+### Validation
+
+| Check | Limit | Response |
+|-------|-------|----------|
+| File size | 5 GB (configurable via `AWS:S3:MaxSinglePutBytes`) | 400 Bad Request |
+| File name length | 256 chars | 400 Bad Request |
+| Max uploads per user | 100 | 400 Bad Request |
+| S3 object not found on confirm | - | 400 Bad Request, record deleted |
+
+### Configuration
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `AWS:S3:PresignedUrlExpirationMinutes` | 60 | Presigned URL expiry (1–1440) |
+| `AWS:S3:MaxSinglePutBytes` | 5368709120 (5 GB) | Max file size for single PUT |
+
+### Orphan Cleanup
+
+Hangfire job `wsi-orphan-cleanup` runs daily. Deletes `WsiUpload` records with `Status=Uploading` older than 24 hours and their S3 objects.
+
+### Worker: Fail Fast on S3 404
+
+If the worker cannot find the S3 object, it publishes `WsiAnalysisFailedEvent` immediately instead of continuing. Prevents phantom success for missing files.
+
+### S3 CORS
+
+Uploads bucket has CORS configured for frontend origins (production: `https://{frontendSubdomain}.{domain}`; dev: `http://localhost:5173`, etc.).
+
+### Structured Errors
+
+| Code | HTTP | Message |
+|------|------|---------|
+| `STORAGE_UNAVAILABLE` | 503 | S3 storage not configured |
+| `UPLOAD_NOT_FOUND` | 400 | S3 object not found on confirm |
+| `UPLOAD_NOT_READY` | 400 | Upload must be Ready before analysis |
+
+---
+
+<a id="wsi-gpu-worker--production-deployment"></a>
+# WSI GPU Worker – Production Deployment
+
+When `Wsi:UseMockWorker=false`, a **separate worker** must consume `WsiAnalysisRequestedEvent` from SQS and publish `WsiAnalysisCompletedEvent` or `WsiAnalysisFailedEvent`.
+
+**Option A – .NET Worker:** Deploy `workers/wsi/HiveOrders.WsiWorker` to ECS Fargate or EKS. MassTransit + AmazonSQS; same `AWS:Scope` as API.
+
+**Option B – Python:** Consume from SQS (boto3); parse MassTransit JSON envelope; publish completion via bridge queue or .NET helper.
+
+**Option C – EKS GPU Pod:** Container with CUDA + inference runtime; KEDA for SQS-based scaling.
+
+**Config:** `AWS__Region`, `AWS__Scope`, `AWS__S3__BucketName`; IAM role for ECS/EKS.
+
+---
+
+<a id="infrastructure-pulumi--aws"></a>
+# Infrastructure (Pulumi + AWS)
+
+TypeScript IaC for dev, staging, production. **Prerequisites:** Node.js 18+, Pulumi CLI, AWS CLI.
+
+**Stacks:** `dev`, `staging`, `prod`. **Required:** `dbPassword` (secret). **Optional:** `awsRegion`, `projectName`, `domainName`, `hostedZoneId`, `enableEksGpu`, `enableWebSocketApi`, `enableXRayTracing`, `apiScalingMin`/`Max`, `workerScalingMin`/`Max`, etc.
+
+**Resources:** VPC, RDS PostgreSQL, S3, SQS, Cognito, ECR, ECS Fargate, CloudFront, CloudWatch, Secrets Manager. Optional: EKS GPU cluster, API Gateway WebSocket.
+
+**Post-deploy:** CI/CD (`.github/workflows/deploy.yml`) or manual: build/push images to ECR, sync frontend to S3, invalidate CloudFront.
+
+---
+
+<a id="kubernetes-manifests-eks"></a>
+# Kubernetes Manifests (EKS)
+
+When `enableEksGpu=true`:
+
+```bash
+export ECR_WORKER_IMAGE=$(pulumi stack output ecrWorkerRepositoryUrl):latest
+export AWS_REGION=us-east-1
+export S3_BUCKET=$(pulumi stack output uploadsBucketName)
+aws eks update-kubeconfig --name $(pulumi stack output eksClusterName) --region $AWS_REGION
+kubectl annotate serviceaccount wsi-worker -n mira eks.amazonaws.com/role-arn=$(pulumi stack output eksWsiWorkerRoleArn) --overwrite
+envsubst < infrastructure/k8s/wsi-worker-deployment.yaml | kubectl apply -f -
+```
+
+**IRSA:** Pods use `eksWsiWorkerRoleArn` for S3/SQS when service account is annotated.
+
+---
+
+<a id="wsi-worker"></a>
+# WSI Worker
+
+Production worker at `workers/wsi/`. Consumes `WsiAnalysisRequestedEvent`, runs inference, publishes `WsiAnalysisCompletedEvent` or `WsiAnalysisFailedEvent`.
+
+**Config:** `AWS__Region`, `AWS__Scope`, `AWS__ServiceUrl` (LocalStack), `Wsi__InferenceServiceUrl` (optional HTTP inference).
+
+**Modes:** (1) Simulated – no InferenceServiceUrl; (2) HTTP service – POST to `{url}/analyze`; (3) Extend – override `RunInferenceAsync`.
+
+**Run:** `cd workers/wsi && dotnet run`. **Deploy:** ECR → ECS Fargate or EKS.
+
+---
+
+<a id="mira-frontend"></a>
+# MIRA Frontend
+
+React SPA: React (TypeScript), Vite, React Router, TailwindCSS, React Query, Axios.
+
+**Setup:** `npm install`. `.env`: `VITE_API_URL`, `VITE_USE_COGNITO`, `VITE_COGNITO_*`.
+
+**Dev:** `npm run dev` → http://localhost:5173. **Build:** `npm run build` → `dist/`. Deploy to S3 + CloudFront.
+
+**Features:** Auth (Cognito or dev token), Order Rounds, WSI upload/viewer, protected routes, error boundaries.
+
+## Frontend Structure
+
+```
+frontend/src/
+├── components/       # Shared UI (app-layout, file-upload-button)
+├── features/        # Feature modules
+│   ├── auth/        # Login, Cognito
+│   ├── order-rounds/
+│   └── wsi/         # WSI upload, viewer, list
+│       ├── components/  # wsi-viewer (OpenSeadragon)
+│       └── routes/     # wsi-upload-page, wsi-viewer-page, wsi-uploads-page
+├── lib/             # API clients, utilities
+│   ├── api.ts       # Axios instance
+│   ├── wsi.ts       # WSI upload/download, validation, error mapping
+│   └── ...
+└── providers/       # React context (auth, notifications)
+```
+
+## WSI Upload
+
+**Flow:** `uploadWsiFileWithProgress` → `validateFileSize` → `getWsiUploadUrl` → `uploadWsiFile` (XHR with progress) → `confirmWsiUpload`.
+
+**Validation:** `validateFileSize` rejects files > 5 GB before upload.
+
+**Progress:** `uploadWsiFile` uses `XMLHttpRequest.upload` progress events; `WsiUploadPage` shows a progress bar.
+
+**Errors:** `mapUploadError` maps API errors (403, 413, 503) and `response.data.message` to user-friendly messages.
+
+---
+
+
+<a id="low-level-system-architecture--uml-diagrams"></a>
 # Low-Level System Architecture – UML Diagrams
 
 This document contains process diagrams, flowcharts, sequence diagrams, and domain model diagrams for the HIVE Food Ordering system. Each diagram is followed by a written explanation.
@@ -1657,78 +2012,4 @@ flowchart LR
 
 ---
 
-# frontend/README.md
-
-# React + TypeScript + Vite
-
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
-
-Currently, two official plugins are available:
-
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [SWC](https://swc.rs/) for Fast Refresh
-
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
-
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
-
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+*Frontend: see [MIRA Frontend](#mira-frontend) above.*
