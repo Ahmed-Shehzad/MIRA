@@ -1,11 +1,12 @@
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 
-COPY *.csproj ./
-RUN dotnet restore
+COPY Directory.Build.props Directory.Packages.props global.json ./
+COPY backend/*.csproj backend/
+RUN dotnet restore backend/HiveOrders.Api.csproj
 
-COPY . ./
-RUN dotnet publish -c Release -o /app/publish
+COPY backend/ backend/
+RUN dotnet publish backend/HiveOrders.Api.csproj -c Release -o /app/publish
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*

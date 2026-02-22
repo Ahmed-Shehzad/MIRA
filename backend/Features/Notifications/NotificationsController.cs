@@ -2,9 +2,8 @@ using System.Security.Claims;
 using Asp.Versioning;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using HiveOrders.Api.Shared.Data;
 using HiveOrders.Api.Shared.Infrastructure;
+using HiveOrders.Api.Shared.ValueObjects;
 
 namespace HiveOrders.Api.Features.Notifications;
 
@@ -14,15 +13,13 @@ namespace HiveOrders.Api.Features.Notifications;
 [Authorize]
 public class NotificationsController : ControllerBase
 {
-    private readonly ApplicationDbContext _db;
+    private readonly INotificationService _notificationService;
     private readonly ITenantContext _tenantContext;
-    private readonly IConfiguration _configuration;
 
-    public NotificationsController(ApplicationDbContext db, ITenantContext tenantContext, IConfiguration configuration)
+    public NotificationsController(INotificationService notificationService, ITenantContext tenantContext)
     {
-        _db = db;
+        _notificationService = notificationService;
         _tenantContext = tenantContext;
-        _configuration = configuration;
     }
 
     /// <summary>Get VAPID public key for push subscription. Returns null if push is not configured.</summary>
@@ -30,10 +27,8 @@ public class NotificationsController : ControllerBase
     [ProducesResponseType(typeof(VapidPublicKeyResponse), StatusCodes.Status200OK)]
     public ActionResult<VapidPublicKeyResponse> GetVapidPublicKey()
     {
-        var key = _configuration["Push:VapidPublicKey"];
-        if (string.IsNullOrWhiteSpace(key))
-            return Ok(new VapidPublicKeyResponse(null));
-        return Ok(new VapidPublicKeyResponse(key));
+        var key = _notificationService.GetVapidPublicKey();
+        return Ok(new VapidPublicKeyResponse(string.IsNullOrWhiteSpace(key) ? null : key));
     }
 
     /// <summary>Get unread notifications for the current user. Poll for in-app alerts.</summary>
@@ -43,16 +38,9 @@ public class NotificationsController : ControllerBase
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         var tenantId = _tenantContext.TenantId;
-        if (userId == null || tenantId == null)
-            return Unauthorized();
+        if (userId == null || tenantId == null) return Unauthorized();
 
-        var notifications = await _db.Set<Notification>()
-            .Where(n => n.UserId == userId && n.TenantId == tenantId.Value && n.ReadAt == null)
-            .OrderByDescending(n => n.CreatedAt)
-            .Take(50)
-            .Select(n => new NotificationResponse(n.Id, n.Type, n.Title, n.Body ?? "", n.CreatedAt))
-            .ToListAsync(cancellationToken);
-
+        var notifications = await _notificationService.GetUnreadAsync(new UserId(userId), tenantId.Value, cancellationToken);
         return Ok(notifications);
     }
 
@@ -64,18 +52,10 @@ public class NotificationsController : ControllerBase
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         var tenantId = _tenantContext.TenantId;
-        if (userId == null || tenantId == null)
-            return Unauthorized();
+        if (userId == null || tenantId == null) return Unauthorized();
 
-        var notification = await _db.Set<Notification>()
-            .FirstOrDefaultAsync(n => n.Id == id && n.UserId == userId && n.TenantId == tenantId.Value, cancellationToken);
-
-        if (notification == null)
-            return NotFound();
-
-        notification.ReadAt = DateTime.UtcNow;
-        await _db.SaveChangesAsync(cancellationToken);
-        return NoContent();
+        var found = await _notificationService.MarkReadAsync(id, new UserId(userId), tenantId.Value, cancellationToken);
+        return found ? NoContent() : NotFound();
     }
 
     /// <summary>Subscribe to push notifications. Requires VAPID keys in config.</summary>
@@ -86,23 +66,9 @@ public class NotificationsController : ControllerBase
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         var tenantId = _tenantContext.TenantId;
-        if (userId == null || tenantId == null)
-            return Unauthorized();
+        if (userId == null || tenantId == null) return Unauthorized();
 
-        var existing = await _db.Set<PushSubscription>()
-            .FirstOrDefaultAsync(s => s.TenantId == tenantId.Value && s.UserId == userId && s.Endpoint == request.Endpoint, cancellationToken);
-        if (existing != null)
-            return NoContent();
-
-        _db.Set<PushSubscription>().Add(new PushSubscription
-        {
-            TenantId = tenantId.Value,
-            UserId = userId,
-            Endpoint = request.Endpoint,
-            P256dh = request.Keys?.P256dh,
-            Auth = request.Keys?.Auth
-        });
-        await _db.SaveChangesAsync(cancellationToken);
+        await _notificationService.SubscribePushAsync(request, new UserId(userId), tenantId.Value, cancellationToken);
         return NoContent();
     }
 }

@@ -1,33 +1,27 @@
-using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using HiveOrders.Api.Shared.Identity;
+using HiveOrders.Api.Shared.ValueObjects;
 
 namespace HiveOrders.Api.Shared.Data;
 
 public static class DbInitializer
 {
-    public const string RoleUser = "User";
-    public const string RoleManager = "Manager";
-    public const string RoleAdmin = "Admin";
+    public const string GroupUsers = "Users";
+    public const string GroupManagers = "Managers";
+    public const string GroupAdmins = "Admins";
 
     public const string DefaultTenantSlug = "hive";
 
     public static async Task InitializeAsync(IServiceProvider serviceProvider)
     {
         using var scope = serviceProvider.CreateScope();
-        var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
-        foreach (var roleName in new[] { RoleUser, RoleManager, RoleAdmin })
-        {
-            if (!await roleManager.RoleExistsAsync(roleName))
-                await roleManager.CreateAsync(new IdentityRole(roleName));
-        }
-
-        var defaultTenant = await db.Tenants.FirstOrDefaultAsync(t => t.Slug == DefaultTenantSlug);
+        var defaultSlug = (TenantSlug)DefaultTenantSlug;
+        var defaultTenant = await db.Tenants.FirstOrDefaultAsync(t => t.Slug == defaultSlug);
         if (defaultTenant == null)
         {
-            db.Tenants.Add(new Tenant { Name = "HIVE", Slug = DefaultTenantSlug });
+            db.Tenants.Add(new Tenant { Name = "HIVE", Slug = defaultSlug });
             await db.SaveChangesAsync();
         }
     }

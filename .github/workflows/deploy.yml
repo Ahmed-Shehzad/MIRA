@@ -1,0 +1,190 @@
+# Production deployment workflow.
+# Required secrets: AWS_ROLE_ARN (OIDC), ECR_REGISTRY (e.g. 123456789.dkr.ecr.us-east-1.amazonaws.com)
+# ECR repos: mira-api, mira-wsi-worker (match Pulumi projectName: mira)
+# Optional: ECS_CLUSTER, ECS_SERVICE (API), ECS_WORKER_CLUSTER, ECS_WORKER_SERVICE (WSI worker),
+#   S3_BUCKET_FRONTEND, CLOUDFRONT_DISTRIBUTION_ID
+name: Deploy
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths-ignore:
+      - '**.md'
+      - '.gitignore'
+
+env:
+  AWS_REGION: us-east-1
+
+jobs:
+  build-backend:
+    name: Build Backend
+    runs-on: ubuntu-latest
+    outputs:
+      image: ${{ steps.meta.outputs.tags }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS
+        if: ${{ secrets.ECR_REGISTRY != '' }}
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        if: ${{ secrets.ECR_REGISTRY != '' }}
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Docker meta
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ secrets.ECR_REGISTRY && format('{0}/mira-api', secrets.ECR_REGISTRY) || format('ghcr.io/{0}/mira-api', github.repository) }}
+          tags: |
+            type=sha,prefix=
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./backend/Dockerfile
+          push: ${{ secrets.ECR_REGISTRY != '' && (github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch') }}
+          tags: ${{ steps.meta.outputs.tags }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  build-worker:
+    name: Build WSI Worker
+    runs-on: ubuntu-latest
+    outputs:
+      image: ${{ steps.meta.outputs.tags }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS
+        if: ${{ secrets.ECR_REGISTRY != '' }}
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        if: ${{ secrets.ECR_REGISTRY != '' }}
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Docker meta
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ secrets.ECR_REGISTRY && format('{0}/mira-wsi-worker', secrets.ECR_REGISTRY) || format('ghcr.io/{0}/mira-wsi-worker', github.repository) }}
+          tags: |
+            type=sha,prefix=
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+
+      - name: Build and push worker
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./workers/wsi/Dockerfile
+          push: ${{ secrets.ECR_REGISTRY != '' && (github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch') }}
+          tags: ${{ steps.meta.outputs.tags }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  build-frontend:
+    name: Build Frontend
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install and build
+        run: |
+          cd frontend && npm ci && npm run build
+
+      - name: Upload frontend artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/dist
+
+  deploy:
+    name: Deploy
+    needs: [build-backend, build-frontend, build-worker]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    steps:
+      - name: Configure AWS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Deploy backend to ECS
+        if: ${{ secrets.ECS_CLUSTER != '' && secrets.ECS_SERVICE != '' }}
+        env:
+          ECS_CLUSTER: ${{ secrets.ECS_CLUSTER }}
+          ECS_SERVICE: ${{ secrets.ECS_SERVICE }}
+        run: |
+          aws ecs update-service \
+            --cluster "$ECS_CLUSTER" \
+            --service "$ECS_SERVICE" \
+            --force-new-deployment \
+            --region ${{ env.AWS_REGION }}
+          echo "ECS service update initiated. New tasks will pull the latest image."
+
+      - name: Deploy backend (no ECS)
+        if: ${{ secrets.ECS_CLUSTER == '' || secrets.ECS_SERVICE == '' }}
+        run: |
+          echo "Skipping ECS deploy. Set ECS_CLUSTER and ECS_SERVICE secrets to enable."
+          echo "Image: ${{ needs.build-backend.outputs.image }}"
+
+      - name: Deploy WSI worker to ECS
+        if: ${{ secrets.ECS_WORKER_CLUSTER != '' && secrets.ECS_WORKER_SERVICE != '' }}
+        env:
+          ECS_CLUSTER: ${{ secrets.ECS_WORKER_CLUSTER }}
+          ECS_SERVICE: ${{ secrets.ECS_WORKER_SERVICE }}
+        run: |
+          aws ecs update-service \
+            --cluster "$ECS_CLUSTER" \
+            --service "$ECS_SERVICE" \
+            --force-new-deployment \
+            --region ${{ env.AWS_REGION }}
+          echo "WSI worker ECS service update initiated."
+
+      - name: Download frontend artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-dist
+
+      - name: Sync frontend to S3
+        if: ${{ secrets.S3_BUCKET_FRONTEND != '' }}
+        env:
+          S3_BUCKET: ${{ secrets.S3_BUCKET_FRONTEND }}
+        run: |
+          aws s3 sync ./frontend-dist/ "s3://$S3_BUCKET/" --delete --region ${{ env.AWS_REGION }}
+
+      - name: Invalidate CloudFront cache
+        if: ${{ secrets.S3_BUCKET_FRONTEND != '' && secrets.CLOUDFRONT_DISTRIBUTION_ID != '' }}
+        env:
+          CLOUDFRONT_ID: ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }}
+        run: |
+          aws cloudfront create-invalidation \
+            --distribution-id "$CLOUDFRONT_ID" \
+            --paths "/*" \
+            --region ${{ env.AWS_REGION }}

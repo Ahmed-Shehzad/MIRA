@@ -7,7 +7,7 @@ export interface AdminUser {
   company: string;
   tenantId: number;
   tenantName: string;
-  roles: string[];
+  groups: string[];
 }
 
 export function useAdminUsers() {

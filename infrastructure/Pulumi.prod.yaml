@@ -1,0 +1,9 @@
+config:
+  mira-infrastructure:environment: prod
+  mira-infrastructure:awsRegion: us-east-1
+  mira-infrastructure:projectName: mira
+  mira-infrastructure:dbInstanceClass: db.t3.medium
+  mira-infrastructure:dbAllocatedStorage: "100"
+  mira-infrastructure:ecsCpu: "1024"
+  mira-infrastructure:ecsMemory: "2048"
+  mira-infrastructure:desiredCount: "2"

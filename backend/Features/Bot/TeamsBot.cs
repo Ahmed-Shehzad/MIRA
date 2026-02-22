@@ -1,4 +1,5 @@
 using HiveOrders.Api.Features.OrderRounds;
+using HiveOrders.Api.Shared.ValueObjects;
 using Microsoft.Bot.Builder;
 using Microsoft.Bot.Schema;
 
@@ -52,7 +53,7 @@ public class TeamsBot : ActivityHandler
 
         if (text.StartsWith("list rounds") || text == "list" || text == "rounds")
         {
-            var rounds = await _orderRoundHandler.GetMyOrderRoundsAsync(userId, cancellationToken);
+            var rounds = await _orderRoundHandler.GetMyOrderRoundsAsync((UserId)userId, cancellationToken);
             var reply = rounds.Count == 0
                 ? "You have no order rounds."
                 : string.Join("\n", rounds.Select(r => $"- {r.RestaurantName} (deadline: {r.Deadline:g})"));

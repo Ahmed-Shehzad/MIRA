@@ -2,6 +2,8 @@ using Microsoft.EntityFrameworkCore;
 using HiveOrders.Api.Features.OrderRounds;
 using HiveOrders.Api.Features.RecurringOrders;
 using HiveOrders.Api.Shared.Data;
+using HiveOrders.Api.Shared.ValueObjects;
+using OrderRoundStatus = HiveOrders.Api.Shared.ValueObjects.OrderRoundStatus;
 using Cronos;
 
 namespace HiveOrders.Api.Features.Jobs;

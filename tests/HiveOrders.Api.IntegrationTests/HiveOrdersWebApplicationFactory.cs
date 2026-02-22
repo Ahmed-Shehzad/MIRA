@@ -26,7 +26,8 @@ public sealed class HiveOrdersWebApplicationFactory : WebApplicationFactory<Prog
                 ["Jwt:Key"] = TestJwtKey,
                 ["Jwt:Issuer"] = "HiveOrders",
                 ["Jwt:Audience"] = "HiveOrders",
-                ["Testing:SkipRateLimiting"] = "true"
+                ["Testing:SkipRateLimiting"] = "true",
+                ["Testing:UseLocalJwt"] = "true"
             });
         });
 

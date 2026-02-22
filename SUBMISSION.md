@@ -19,9 +19,15 @@ This submission contains:
 
 ## Documentation Files
 
-- docs/approach.md
-- docs/future_features.md
-- docs/high_level_platform.md
-- docs/system-architecture-diagrams.md (UML: domain model, sequence, process, ER, state diagrams)
-- docs/production-config.md
-- README.md
+- **README.md** – Project overview, quick start
+- **docs/README.md** – Documentation index and system scope
+- **docs/approach.md** – MVP implementation approach, decisions
+- **docs/future_features.md** – Implemented features, roadmap
+- **docs/high_level_platform.md** – AWS cloud architecture for WSI/Digital Pathology platform
+- **docs/production-architecture.md** – Deployment topology, AWS mapping
+- **docs/production-config.md** – Environment variables, config structure
+- **docs/SYSTEM-ARCHITECTURE.md** – Component overview, tools, implementation status
+- **docs/system-architecture-diagrams.md** – UML diagrams (domain model, ER, sequence, process)
+- **docs/SCALABLE-GPU-INFERENCE.md** – GPU inference scalability for WSI
+- **docs/LARGE-FILE-HANDLING.md** – WSI performance and bottlenecks
+- **DOCUMENTATION.md** – Combined documentation (setup, run, architecture)

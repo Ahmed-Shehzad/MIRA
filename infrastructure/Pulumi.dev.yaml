@@ -1,0 +1,9 @@
+config:
+  mira-infrastructure:environment: dev
+  mira-infrastructure:awsRegion: us-east-1
+  mira-infrastructure:projectName: mira
+  mira-infrastructure:dbInstanceClass: db.t3.micro
+  mira-infrastructure:dbAllocatedStorage: "20"
+  mira-infrastructure:ecsCpu: "256"
+  mira-infrastructure:ecsMemory: "512"
+  mira-infrastructure:desiredCount: "1"

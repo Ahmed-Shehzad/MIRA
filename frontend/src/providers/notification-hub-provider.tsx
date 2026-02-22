@@ -9,8 +9,8 @@ import {
 } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/providers/auth-provider';
-import { createNotificationConnection, type NotificationPayload } from '@/lib/signalr';
-import type { HubConnection } from '@microsoft/signalr';
+import { createNotificationConnection, type NotificationPayload } from '@/lib/notification-connection';
+import type { NotificationConnection } from '@/lib/notification-connection';
 
 interface NotificationHubContextType {
   lastNotification: NotificationPayload | null;
@@ -23,7 +23,7 @@ export function NotificationHubProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [lastNotification, setLastNotification] = useState<NotificationPayload | null>(null);
-  const connectionRef = useRef<HubConnection | null>(null);
+  const connectionRef = useRef<NotificationConnection | null>(null);
 
   const clearLastNotification = useCallback(() => setLastNotification(null), []);
 

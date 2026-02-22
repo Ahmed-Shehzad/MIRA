@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using Microsoft.EntityFrameworkCore;
 using HiveOrders.Api.Shared.Data;
+using HiveOrders.Api.Shared.ValueObjects;
 
 namespace HiveOrders.Api.Features.Bot;
 
@@ -24,18 +25,19 @@ public class BotLinkService : IBotLinkService
         _db.Set<BotLinkCode>().Add(new BotLinkCode
         {
             Code = code,
-            UserId = userId,
+            UserId = new UserId(userId),
             ExpiresAt = expiry
         });
         await _db.SaveChangesAsync(cancellationToken);
 
-        return code;
+        return code.Value;
     }
 
     public async Task<bool> ConsumeLinkCodeAsync(string code, string externalId, CancellationToken cancellationToken = default)
     {
+        var linkCodeValue = new LinkCode(code);
         var linkCode = await _db.Set<BotLinkCode>()
-            .FirstOrDefaultAsync(c => c.Code == code && c.ExpiresAt > DateTime.UtcNow, cancellationToken);
+            .FirstOrDefaultAsync(c => c.Code == linkCodeValue && c.ExpiresAt > DateTime.UtcNow, cancellationToken);
 
         if (linkCode == null)
             return false;
@@ -44,7 +46,8 @@ public class BotLinkService : IBotLinkService
         if (user == null)
             return false;
 
-        var existing = await _db.BotUserConnections.FirstOrDefaultAsync(c => c.TenantId == user.TenantId && c.ExternalId == externalId, cancellationToken);
+        var extId = new ExternalId(externalId);
+        var existing = await _db.BotUserConnections.FirstOrDefaultAsync(c => c.TenantId == user.TenantId && c.ExternalId == extId, cancellationToken);
         if (existing != null)
             _db.BotUserConnections.Remove(existing);
 
@@ -52,7 +55,7 @@ public class BotLinkService : IBotLinkService
         {
             TenantId = user.TenantId,
             UserId = linkCode.UserId,
-            ExternalId = externalId
+            ExternalId = extId
         });
         _db.Set<BotLinkCode>().Remove(linkCode);
         await _db.SaveChangesAsync(cancellationToken);
@@ -60,19 +63,19 @@ public class BotLinkService : IBotLinkService
         return true;
     }
 
-    private static string GenerateCode()
+    private static LinkCode GenerateCode()
     {
         var bytes = new byte[4];
         RandomNumberGenerator.Fill(bytes);
         var num = Math.Abs(BitConverter.ToInt32(bytes, 0)) % (int)Math.Pow(10, CodeLength);
-        return num.ToString($"D{CodeLength}");
+        return new LinkCode(num.ToString($"D{CodeLength}"));
     }
 }
 
 public class BotLinkCode
 {
     public int Id { get; set; }
-    public required string Code { get; set; }
-    public required string UserId { get; set; }
+    public LinkCode Code { get; set; }
+    public UserId UserId { get; set; }
     public DateTime ExpiresAt { get; set; }
 }

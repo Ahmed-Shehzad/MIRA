@@ -1,0 +1,23 @@
+{
+  "name": "mira-infrastructure",
+  "version": "1.0.0",
+  "description": "Pulumi AWS infrastructure for MIRA",
+  "main": "index.ts",
+  "scripts": {
+    "build": "tsc",
+    "prepare:lambda": "cd lambda/ws-connect && npm install --omit=dev && cd ../..",
+    "predeploy": "npm run prepare:lambda",
+    "deploy": "npm run predeploy && pulumi up",
+    "preview": "npm run predeploy && pulumi preview",
+    "destroy": "pulumi destroy"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0"
+  },
+  "dependencies": {
+    "@pulumi/aws": "^6.0.0",
+    "@pulumi/awsx": "^2.0.0",
+    "@pulumi/pulumi": "^3.0.0"
+  }
+}

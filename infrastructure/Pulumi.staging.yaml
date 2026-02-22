@@ -1,0 +1,9 @@
+config:
+  mira-infrastructure:environment: staging
+  mira-infrastructure:awsRegion: us-east-1
+  mira-infrastructure:projectName: mira
+  mira-infrastructure:dbInstanceClass: db.t3.small
+  mira-infrastructure:dbAllocatedStorage: "50"
+  mira-infrastructure:ecsCpu: "512"
+  mira-infrastructure:ecsMemory: "1024"
+  mira-infrastructure:desiredCount: "2"

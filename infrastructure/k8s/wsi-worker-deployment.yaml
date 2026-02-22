@@ -1,0 +1,55 @@
+# WSI Worker Deployment for EKS (when enableEksGpu=true)
+# Apply after: pulumi up, then kubectl apply -f k8s/wsi-worker-deployment.yaml
+# Replace placeholders: ${ECR_WORKER_IMAGE}, ${AWS_REGION}, ${S3_BUCKET}
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: mira
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: wsi-worker
+  namespace: mira
+  # Annotate with IRSA role ARN for pod-level IAM (run after pulumi up):
+  # kubectl annotate serviceaccount wsi-worker -n mira eks.amazonaws.com/role-arn=$(pulumi stack output eksWsiWorkerRoleArn)
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: wsi-worker
+  namespace: mira
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: wsi-worker
+  template:
+    metadata:
+      labels:
+        app: wsi-worker
+    spec:
+      serviceAccountName: wsi-worker
+      # Uncomment for GPU nodes: nodeSelector: { "eks.amazonaws.com/capacityType": "ON_DEMAND" }
+      containers:
+        - name: worker
+          image: ${ECR_WORKER_IMAGE}
+          env:
+            - name: DOTNET_ENVIRONMENT
+              value: Production
+            - name: AWS__Region
+              value: ${AWS_REGION}
+            - name: AWS__Scope
+              value: hive-orders
+            - name: AWS__S3__BucketName
+              value: ${S3_BUCKET}
+            - name: AWS__S3__Region
+              value: ${AWS_REGION}
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "250m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"

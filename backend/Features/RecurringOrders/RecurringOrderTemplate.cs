@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using HiveOrders.Api.Shared.Identity;
+using HiveOrders.Api.Shared.ValueObjects;
 
 namespace HiveOrders.Api.Features.RecurringOrders;
 
@@ -20,8 +21,8 @@ public class RecurringOrderTemplate
     [MaxLength(50)]
     public required string CronExpression { get; set; }
 
-    public required string CreatedByUserId { get; set; }
-    public ApplicationUser CreatedByUser { get; set; } = null!;
+    public UserId CreatedByUserId { get; set; }
+    public AppUser CreatedByUser { get; set; } = null!;
 
     public bool IsActive { get; set; } = true;
 

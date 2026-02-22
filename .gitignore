@@ -179,8 +179,6 @@ docker-compose.*.local.yml
 # Docker Compose generated / volume data directories
 postgres_data/
 postgres-data/
-rabbitmq_data/
-rabbitmq-data/
 mysql_data/
 mysql-data/
 mongo_data/

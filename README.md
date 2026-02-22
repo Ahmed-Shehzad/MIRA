@@ -1,8 +1,8 @@
-# HIVE Food Ordering Coordination System (MVP)
+# MIRA – HIVE Food Ordering Coordination System
 
-A lightweight web-based system for coordinating food orders between companies located in HIVE Göppingen.
+A lightweight web-based system for coordinating food orders between companies located in HIVE Göppingen, with extended support for Whole Slide Image (WSI) upload and analysis.
 
-The system is designed to be simple, production-ready, and cloud-extensible.
+**Scope:** (1) Food ordering – order rounds, items, payments, recurring orders, Teams bot, notifications. (2) WSI platform – upload, analysis jobs, viewer. Both share the same backend, database, auth, and infrastructure.
 
 ---
 
@@ -18,16 +18,16 @@ The system is designed to be simple, production-ready, and cloud-extensible.
 ### Backend
 - ASP.NET Core (.NET 10 Web API)
 - Entity Framework Core
-- ASP.NET Identity
-- JWT Authentication
-- MassTransit (event-driven: AWS SNS/SQS in production, RabbitMQ in dev)
+- AWS Cognito (auth for all environments)
+- JWT (Cognito id_token)
+- MassTransit (event-driven: AWS SNS/SQS in production, LocalStack in dev)
 - Hangfire (background jobs in PostgreSQL)
 
 ### Database
 - PostgreSQL (development and production)
 
 ### Infrastructure
-- Docker & Docker Compose (backend, frontend, PostgreSQL, RabbitMQ for dev, MailHog)
+- Docker & Docker Compose (backend, frontend, PostgreSQL, LocalStack for dev, MailHog)
 
 ### Email
 - MailHog (development)
@@ -63,7 +63,7 @@ Services:
 - Backend API: http://localhost:5000
 - Swagger UI: http://localhost:5000/swagger (development only)
 - Hangfire Dashboard: http://localhost:5000/hangfire (development only)
-- RabbitMQ Management: http://localhost:15672 (guest/guest)
+- LocalStack (SQS/SNS): http://localhost:4566
 - PostgreSQL: localhost:5432
 - MailHog UI (email): http://localhost:8025
 
@@ -119,44 +119,22 @@ Frontend runs on:
 
 ## 👤 How to Use
 
-1. Register using company email
-2. Confirm email (check MailHog at http://localhost:8025 in dev)
-3. Create an Order Round
-4. Share link with colleagues
-5. Add items before deadline
-6. Close order and export summary
+1. Sign in with Cognito (Hosted UI)
+2. Create an Order Round
+3. Share link with colleagues
+4. Add items before deadline
+5. Close order and export summary
 
 ---
 
 ## 🔐 Authentication
 
-- Email verification required
-- JWT-based authentication
-- Role-based authorization (User / Manager)
-- **SSO** (production only): Google and Microsoft OAuth; disabled in development; token passed via URL fragment
+- **AWS Cognito** for all environments
+- JWT-based (Cognito id_token)
+- Group-based authorization (Admins, Managers, Users)
+- SSO via Cognito Identity Providers (Google, Microsoft) – configure in Cognito User Pool
 
----
-
-## 🔧 SSO Configuration (Production)
-
-SSO is disabled in development. To enable Google or Microsoft SSO in production:
-
-**Google:** Create OAuth credentials in [Google Cloud Console](https://console.cloud.google.com/apis/credentials). Redirect URI: `https://your-api-host/signin-google`.
-
-**Microsoft:** Create app in [Azure Portal](https://portal.azure.com/) (App registrations). Redirect URI: `https://your-api-host/signin-microsoft`.
-
-Set in `appsettings.Production.json` or environment variables:
-
-```json
-{
-  "Authentication": {
-    "Google": { "ClientId": "...", "ClientSecret": "...", "FrontendRedirectUri": "https://your-frontend/login" },
-    "Microsoft": { "ClientId": "...", "ClientSecret": "...", "FrontendRedirectUri": "https://your-frontend/login" }
-  }
-}
-```
-
-Check available providers: `GET /api/v1/auth/sso/providers`
+See [docs/production-config.md](docs/production-config.md) for Cognito configuration.
 
 ---
 
@@ -170,10 +148,19 @@ Check available providers: `GET /api/v1/auth/sso/providers`
 
 See [docs/production-config.md](docs/production-config.md) for environment variables and secrets. CORS origins must be explicitly set in production.
 
-## ☁️ AWS Deployment Plan
+## ☁️ Production Architecture
 
-- Backend → ECS (Fargate) or EKS (containerized)
-- Frontend → S3 + CloudFront (static) or ECS/EKS (containerized)
-- Database → Amazon RDS for PostgreSQL
-- Email → Amazon SES
-- Secrets → AWS Secrets Manager
+Production follows [docs/high_level_platform.md](docs/high_level_platform.md) strictly. Fully managed AWS infrastructure:
+
+| Component | AWS Service |
+|-----------|-------------|
+| Auth | **Cognito** (all environments) |
+| Storage | **S3** (presigned URLs) |
+| Metadata | **RDS PostgreSQL** |
+| Job Queue | **SQS** (via MassTransit) |
+| Compute | **EKS** or ECS Fargate |
+| Real-time | WebSocket API or AppSync |
+| CDN | **CloudFront** |
+| Email | Amazon SES |
+
+See [docs/production-architecture.md](docs/production-architecture.md) and [docs/production-config.md](docs/production-config.md).

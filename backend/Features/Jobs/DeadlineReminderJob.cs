@@ -3,6 +3,8 @@ using HiveOrders.Api.Features.Notifications;
 using HiveOrders.Api.Features.OrderRounds;
 using HiveOrders.Api.Shared.Data;
 using HiveOrders.Api.Shared.Infrastructure;
+using HiveOrders.Api.Shared.ValueObjects;
+using OrderRoundStatus = HiveOrders.Api.Shared.ValueObjects.OrderRoundStatus;
 
 namespace HiveOrders.Api.Features.Jobs;
 
@@ -42,11 +44,10 @@ public class DeadlineReminderJob
 
         foreach (var round in rounds)
         {
-            var userIds = round.OrderItems.Select(i => i.UserId).Distinct().ToHashSet();
-            userIds.Add(round.CreatedByUserId);
-
             var title = $"Order reminder: {round.RestaurantName} closes soon";
             var body = $"The order round for {round.RestaurantName} closes in about {minutesBefore} minutes. Deadline: {round.Deadline:g} UTC.";
+            var userIds = round.OrderItems.Select(i => i.UserId).Distinct().ToHashSet();
+            userIds.Add(round.CreatedByUserId);
 
             foreach (var userId in userIds)
             {
@@ -54,43 +55,59 @@ public class DeadlineReminderJob
                 {
                     TenantId = round.TenantId,
                     UserId = userId,
-                    Type = NotificationTypeDeadlineReminder,
+                    Type = (NotificationType)NotificationTypeDeadlineReminder,
                     Title = title,
                     Body = body
                 });
-
-                var user = round.OrderItems.Select(i => i.User).FirstOrDefault(u => u.Id == userId)
-                    ?? round.CreatedByUser;
-                if (user?.Email != null)
-                {
-                    try
-                    {
-                        await emailService.SendEmailAsync(user.Email, title, $"<p>{body}</p>", cancellationToken);
-                    }
-                    catch
-                    {
-                        // Log and continue
-                    }
-                }
-                try
-                {
-                    await pushService.SendToUserAsync(round.TenantId, userId, title, body, cancellationToken);
-                }
-                catch
-                {
-                    // Log and continue
-                }
-                try
-                {
-                    await hubClient.SendToUserAsync(round.TenantId, userId, NotificationTypeDeadlineReminder, title, body, cancellationToken);
-                }
-                catch
-                {
-                    // Log and continue
-                }
+                await SendReminderToUserAsync(new ReminderContext(
+                    round, userId, title, body,
+                    emailService, pushService, hubClient),
+                    cancellationToken);
             }
         }
 
         await db.SaveChangesAsync(cancellationToken);
+    }
+
+    private sealed record ReminderContext(
+        OrderRound Round,
+        UserId UserId,
+        string Title,
+        string Body,
+        IEmailService EmailService,
+        IPushNotificationService PushService,
+        INotificationHubClient HubClient);
+
+    private static async Task SendReminderToUserAsync(ReminderContext ctx, CancellationToken cancellationToken)
+    {
+        var user = ctx.Round.OrderItems.Select(i => i.User).FirstOrDefault(u => u.Id == ctx.UserId)
+            ?? ctx.Round.CreatedByUser;
+        if (user?.Email.Value != null)
+        {
+            try
+            {
+                await ctx.EmailService.SendEmailAsync(user.Email.Value, ctx.Title, $"<p>{ctx.Body}</p>", cancellationToken);
+            }
+            catch
+            {
+                // Log and continue
+            }
+        }
+        try
+        {
+            await ctx.PushService.SendToUserAsync(ctx.Round.TenantId, ctx.UserId.Value, ctx.Title, ctx.Body, cancellationToken);
+        }
+        catch
+        {
+            // Log and continue
+        }
+        try
+        {
+            await ctx.HubClient.SendToUserAsync(ctx.Round.TenantId, ctx.UserId.Value, NotificationTypeDeadlineReminder, ctx.Title, ctx.Body, cancellationToken);
+        }
+        catch
+        {
+            // Log and continue
+        }
     }
 }

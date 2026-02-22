@@ -1,7 +1,7 @@
 import { useAdminTenants } from '../hooks/use-admin-tenants';
 import { useAdminUsers, useAssignAdmin } from '../hooks/use-admin-users';
 
-const ADMIN_ROLE = 'Admin';
+const ADMIN_GROUP = 'Admins';
 
 export function AdminDashboardPage() {
   const { data: tenants = [], isLoading: tenantsLoading } = useAdminTenants();
@@ -62,19 +62,19 @@ export function AdminDashboardPage() {
                   <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">Email</th>
                   <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">Company</th>
                   <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">Tenant</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">Roles</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">Groups</th>
                   <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200 bg-white">
                 {users.map((u) => {
-                  const isAdmin = u.roles.includes(ADMIN_ROLE);
+                  const isAdmin = u.groups.includes(ADMIN_GROUP);
                   return (
                     <tr key={u.id}>
                       <td className="px-4 py-3 text-sm text-gray-900">{u.email}</td>
                       <td className="px-4 py-3 text-sm text-gray-600">{u.company}</td>
                       <td className="px-4 py-3 text-sm text-gray-600">{u.tenantName}</td>
-                      <td className="px-4 py-3 text-sm text-gray-600">{u.roles.join(', ')}</td>
+                      <td className="px-4 py-3 text-sm text-gray-600">{u.groups.join(', ')}</td>
                       <td className="px-4 py-3">
                         {!isAdmin && (
                           <button

@@ -1,0 +1,16 @@
+# Used when building backend from repo root
+.git
+.github
+.vscode
+.cursor
+**/bin
+**/obj
+**/node_modules
+**/.git
+frontend
+docs
+*.md
+*.plan.md
+*.jsonl
+agent-transcripts
+terminals

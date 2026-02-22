@@ -3,7 +3,7 @@ import { useAuth } from '@/providers/auth-provider';
 import { NotificationBell } from '@/features/notifications/components/notification-bell';
 import { PushEnableButton } from '@/features/notifications/components/push-enable-button';
 
-const ADMIN_ROLE = 'Admin';
+const ADMIN_GROUP = 'Admins';
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -11,7 +11,7 @@ interface AppLayoutProps {
 
 export function AppLayout({ children }: AppLayoutProps) {
   const { user, logout } = useAuth();
-  const isAdmin = user?.roles?.includes(ADMIN_ROLE) ?? false;
+  const isAdmin = user?.groups?.includes(ADMIN_GROUP) ?? false;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -27,6 +27,9 @@ export function AppLayout({ children }: AppLayoutProps) {
               </Link>
               <Link to="/rounds/new" className="text-sm font-medium text-gray-600 hover:text-gray-900">
                 New Round
+              </Link>
+              <Link to="/wsi" className="text-sm font-medium text-gray-600 hover:text-gray-900">
+                WSI
               </Link>
               {isAdmin && (
                 <Link to="/admin" className="text-sm font-medium text-gray-600 hover:text-gray-900">

@@ -9,6 +9,9 @@ import { CreateOrderRoundPage } from '@/features/order-rounds/routes/create-orde
 import { OrderRoundDetailPage } from '@/features/order-rounds/routes/order-round-detail-page';
 import { ExportSummaryPage } from '@/features/order-rounds/routes/export-summary-page';
 import { AdminDashboardPage } from '@/features/admin/routes/admin-dashboard-page';
+import { WsiUploadsPage } from '@/features/wsi/routes/wsi-uploads-page';
+import { WsiUploadPage } from '@/features/wsi/routes/wsi-upload-page';
+import { WsiViewerPage } from '@/features/wsi/routes/wsi-viewer-page';
 
 export function AppRoutes() {
   return (
@@ -64,6 +67,36 @@ export function AppRoutes() {
                 <AdminDashboardPage />
               </AppLayout>
             </AdminProtectedRoute>
+          }
+        />
+        <Route
+          path="/wsi"
+          element={
+            <ProtectedRoute>
+              <AppLayout>
+                <WsiUploadsPage />
+              </AppLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/wsi/new"
+          element={
+            <ProtectedRoute>
+              <AppLayout>
+                <WsiUploadPage />
+              </AppLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/wsi/:id"
+          element={
+            <ProtectedRoute>
+              <AppLayout>
+                <WsiViewerPage />
+              </AppLayout>
+            </ProtectedRoute>
           }
         />
         <Route path="*" element={<Navigate to="/" replace />} />

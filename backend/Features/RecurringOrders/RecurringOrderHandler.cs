@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using HiveOrders.Api.Shared.Data;
 using HiveOrders.Api.Shared.Infrastructure;
+using HiveOrders.Api.Shared.ValueObjects;
 
 namespace HiveOrders.Api.Features.RecurringOrders;
 
@@ -20,7 +21,7 @@ public class RecurringOrderHandler : IRecurringOrderHandler
         var tenantId = _tenantContext.TenantId;
         if (tenantId == null) return [];
         var templates = await _db.RecurringOrderTemplates
-            .Where(t => t.TenantId == tenantId.Value && t.CreatedByUserId == userId)
+            .Where(t => t.TenantId == tenantId.Value.Value && t.CreatedByUserId == (UserId)userId)
             .OrderBy(t => t.RestaurantName)
             .ToListAsync(cancellationToken);
 
@@ -32,7 +33,7 @@ public class RecurringOrderHandler : IRecurringOrderHandler
         var tenantId = _tenantContext.TenantId;
         if (tenantId == null) return null;
         var template = await _db.RecurringOrderTemplates
-            .FirstOrDefaultAsync(t => t.Id == id && t.TenantId == tenantId.Value && t.CreatedByUserId == userId, cancellationToken);
+            .FirstOrDefaultAsync(t => t.Id == id && t.TenantId == tenantId.Value.Value && t.CreatedByUserId == (UserId)userId, cancellationToken);
 
         return template == null ? null : Map(template);
     }
@@ -42,11 +43,11 @@ public class RecurringOrderHandler : IRecurringOrderHandler
         var tenantId = _tenantContext.TenantId ?? throw new UnauthorizedAccessException("Tenant context required.");
         var template = new RecurringOrderTemplate
         {
-            TenantId = tenantId,
+            TenantId = tenantId.Value,
             RestaurantName = request.RestaurantName,
             RestaurantUrl = request.RestaurantUrl,
             CronExpression = request.CronExpression,
-            CreatedByUserId = userId,
+            CreatedByUserId = (UserId)userId,
             IsActive = true
         };
 
@@ -61,7 +62,7 @@ public class RecurringOrderHandler : IRecurringOrderHandler
         var tenantId = _tenantContext.TenantId;
         if (tenantId == null) return null;
         var template = await _db.RecurringOrderTemplates
-            .FirstOrDefaultAsync(t => t.Id == id && t.TenantId == tenantId.Value && t.CreatedByUserId == userId, cancellationToken);
+            .FirstOrDefaultAsync(t => t.Id == id && t.TenantId == tenantId.Value.Value && t.CreatedByUserId == (UserId)userId, cancellationToken);
 
         if (template == null)
             return null;
@@ -80,7 +81,7 @@ public class RecurringOrderHandler : IRecurringOrderHandler
         var tenantId = _tenantContext.TenantId;
         if (tenantId == null) return false;
         var template = await _db.RecurringOrderTemplates
-            .FirstOrDefaultAsync(t => t.Id == id && t.TenantId == tenantId.Value && t.CreatedByUserId == userId, cancellationToken);
+            .FirstOrDefaultAsync(t => t.Id == id && t.TenantId == tenantId.Value.Value && t.CreatedByUserId == (UserId)userId, cancellationToken);
 
         if (template == null)
             return false;
@@ -91,5 +92,5 @@ public class RecurringOrderHandler : IRecurringOrderHandler
     }
 
     private static RecurringOrderTemplateResponse Map(RecurringOrderTemplate t) =>
-        new(t.Id, t.RestaurantName, t.RestaurantUrl, t.CronExpression, t.CreatedByUserId, t.IsActive, t.NextRunAt);
+        new(t.Id, t.RestaurantName, t.RestaurantUrl, t.CronExpression, t.CreatedByUserId.Value, t.IsActive, t.NextRunAt);
 }

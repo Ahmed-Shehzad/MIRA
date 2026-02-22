@@ -14,7 +14,7 @@
 - **Recurring Orders** – RecurringOrderTemplate entity, Hangfire cron job for automated round creation
 - **Notifications** – Email reminders before deadlines (background job every 15 min)
 - **Microsoft Teams Bot** – Bot Framework webhook, list rounds, link account via code
-- **Event-driven** – MassTransit; production: AWS SNS/SQS (pub/sub); development: RabbitMQ; tests: InMemory. Apache 2.0 only.
+- **Event-driven** – MassTransit; production: AWS SNS/SQS (pub/sub); development: LocalStack; tests: InMemory. Apache 2.0 only.
 - **global.json** – SDK version pinning
 - **JsonPropertyName** – camelCase on all DTOs
 - **Technical debt resolved** – Hangfire PostgreSqlStorage, CloudAdapter, Stripe webhook model binding, MassTransit refactor
@@ -43,6 +43,8 @@ Implemented: Tenant entity, TenantId on all entities, tenant-aware authorization
 
 ### 5️⃣ Notifications ✅
 
-Implemented: Email reminders before deadline (configurable minutes). In-app alerts via `GET /api/v1/notifications/unread` and `POST /api/v1/notifications/{id}/read`. DeadlineReminderJob creates both email and in-app notifications.
+Implemented: Email reminders before deadline (configurable minutes). In-app alerts via `GET /api/v1/notifications/unread` and `POST /api/v1/notifications/{id}/read`. Push subscription: `GET /api/v1/notifications/push/vapid-public-key`, `POST /api/v1/notifications/push/subscribe`. Push delivery: `PushNotificationService` sends web push to subscribed clients; `DeadlineReminderJob` sends email, in-app (SignalR), and web push. Frontend: service worker (`sw.js`), `PushEnableButton`, `usePushSubscribe`.
 
-Remaining: Push notifications (web push). See `.cursor/plans/notifications_push_inapp.plan.md`.
+### 6️⃣ WSI (Whole Slide Image) ✅
+
+Implemented: Presigned upload (`POST /api/v1/wsi/upload-url`), metadata registration (`POST /api/v1/wsi/uploads`), manual analysis trigger (`POST /api/v1/wsi/uploads/{id}/analyze`), job status (`GET /api/v1/wsi/jobs/{id}`), OpenSeadragon viewer. Job queue via MassTransit/SQS.

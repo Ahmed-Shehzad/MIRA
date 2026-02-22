@@ -2,6 +2,7 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using WebPush;
 using HiveOrders.Api.Shared.Data;
+using HiveOrders.Api.Shared.ValueObjects;
 using PushSubscriptionEntity = HiveOrders.Api.Features.Notifications.PushSubscription;
 
 namespace HiveOrders.Api.Features.Notifications;
@@ -24,8 +25,10 @@ public class PushNotificationService : IPushNotificationService
         if (string.IsNullOrEmpty(vapidPublic) || string.IsNullOrEmpty(vapidPrivate))
             return;
 
+        var tid = (TenantId)tenantId;
+        var uid = (UserId)userId;
         var subscriptions = await _db.Set<PushSubscriptionEntity>()
-            .Where(s => s.TenantId == tenantId && s.UserId == userId)
+            .Where(s => s.TenantId == tid && s.UserId == uid)
             .ToListAsync(cancellationToken);
 
         if (subscriptions.Count == 0)
@@ -40,7 +43,7 @@ public class PushNotificationService : IPushNotificationService
         {
             try
             {
-                var subscription = new WebPush.PushSubscription(sub.Endpoint, sub.P256dh ?? "", sub.Auth ?? "");
+                var subscription = new WebPush.PushSubscription(sub.Endpoint.Value, sub.P256dh ?? "", sub.Auth ?? "");
                 await client.SendNotificationAsync(subscription, payload, vapidDetails, cancellationToken);
             }
             catch (WebPushException ex) when (ex.StatusCode == System.Net.HttpStatusCode.Gone || ex.StatusCode == System.Net.HttpStatusCode.NotFound)

@@ -1,11 +1,13 @@
 services:
-  rabbitmq:
-    image: rabbitmq:3-management-alpine
+  localstack:
+    image: localstack/localstack:latest
     ports:
-      - "5672:5672"
-      - "15672:15672"
+      - "4566:4566"
+    environment:
+      SERVICES: sqs,sns
+      DEBUG: "0"
     healthcheck:
-      test: ["CMD", "rabbitmq-diagnostics", "check_running"]
+      test: ["CMD", "curl", "-f", "http://localhost:4566/_localstack/health"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -33,11 +35,13 @@ services:
       - "8025:8025"
 
   backend:
-    build: ./backend
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
     depends_on:
       postgres:
         condition: service_healthy
-      rabbitmq:
+      localstack:
         condition: service_healthy
       mailhog:
         condition: service_started
@@ -51,12 +55,19 @@ services:
       ASPNETCORE_ENVIRONMENT: Development
       ConnectionStrings__DefaultConnection: "Host=postgres;Port=5432;Database=hive_orders;Username=hive;Password=hive_dev"
       ASPNETCORE_URLS: "http://+:5000"
+      Testing__UseLocalJwt: "true"
+      Jwt__Key: "DockerDevKey-MustBeAtLeast32CharactersLong!"
+      Jwt__Issuer: "HiveOrders"
+      Jwt__Audience: "HiveOrders"
       Email__SmtpHost: mailhog
       Email__SmtpPort: "1025"
       Email__FromAddress: "noreply@hive.local"
-      RabbitMQ__Host: rabbitmq
-      RabbitMQ__Username: guest
-      RabbitMQ__Password: guest
+      AWS__Region: us-east-1
+      AWS__ServiceUrl: http://localstack:4566
+      AWS__AccessKey: test
+      AWS__SecretKey: test
+      Cors__AllowedOrigins__0: "http://localhost:5173"
+      Cors__AllowedOrigins__1: "http://localhost:3000"
     ports:
       - "5000:5000"
 
@@ -65,6 +76,7 @@ services:
       context: ./frontend
       args:
         VITE_API_URL: "http://localhost:5000"
+        VITE_USE_COGNITO: "false"
     ports:
       - "5173:80"
     depends_on:

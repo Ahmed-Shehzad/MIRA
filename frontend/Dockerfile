@@ -6,7 +6,9 @@ RUN npm ci
 
 COPY . ./
 ARG VITE_API_URL=http://localhost:5000
+ARG VITE_USE_COGNITO=true
 ENV VITE_API_URL=$VITE_API_URL
+ENV VITE_USE_COGNITO=$VITE_USE_COGNITO
 RUN npm run build
 
 FROM nginx:alpine AS runtime

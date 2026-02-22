@@ -8,12 +8,12 @@ This document contains process diagrams, flowcharts, sequence diagrams, and doma
 
 ```mermaid
 classDiagram
-    class ApplicationUser {
+    class AppUser {
         +string Id
-        +string UserName
+        +string CognitoUsername
         +string Email
         +string Company
-        +bool EmailConfirmed
+        +IList~string~ Groups
     }
 
     class OrderRound {
@@ -46,8 +46,8 @@ classDiagram
         Closed
     }
 
-    ApplicationUser "1" --> "*" OrderRound : creates
-    ApplicationUser "1" --> "*" OrderItem : owns
+    AppUser "1" --> "*" OrderRound : creates
+    AppUser "1" --> "*" OrderItem : owns
     OrderRound "1" --> "*" OrderItem : contains
     OrderRound --> OrderRoundStatus : has
 ```
@@ -60,7 +60,7 @@ sequenceDiagram
     participant Handler as OrderRoundHandler
     participant DB as DbContext
     participant MT as MassTransit
-    participant MQ as SNS/SQS or RabbitMQ
+    participant MQ as SNS/SQS
     participant C as Consumer
 
     API->>Handler: CreateAsync(request)
@@ -72,11 +72,11 @@ sequenceDiagram
     C->>C: Log / Process
 ```
 
-**Explanation:** After a handler persists state, it publishes domain events via MassTransit. **Production**: events go to AWS SNS (topics), which fan out to SQS queues; consumers process from SQS. **Development**: RabbitMQ. **Tests**: InMemory. All transports use open-source libraries (MassTransit, AWS SDK: Apache 2.0).
+**Explanation:** After a handler persists state, it publishes domain events via MassTransit. **Production**: events go to AWS SNS (topics), which fan out to SQS queues; consumers process from SQS. **Development**: LocalStack (SQS/SNS emulation). **Tests**: InMemory. All transports use open-source libraries (MassTransit, AWS SDK: Apache 2.0).
 
 ---
 
-**Explanation:** This class diagram shows the core domain entities and their relationships. **ApplicationUser** extends ASP.NET Identity and adds a `Company` field. Each user can create many **OrderRounds** (one-to-many) and own many **OrderItems** (one-to-many). An **OrderRound** has a restaurant name, URL, deadline, and status (Open or Closed); it contains many **OrderItems**. Each **OrderItem** belongs to one round and one user, and has description, price, and optional notes. The arrows indicate cardinality: `1` → `*` means one entity relates to many.
+**Explanation:** This class diagram shows the core domain entities and their relationships. **AppUser** is provisioned from AWS Cognito (Id = Cognito sub); it has `Company` and `Groups` (cached from cognito:groups). Each user can create many **OrderRounds** (one-to-many) and own many **OrderItems** (one-to-many). An **OrderRound** has a restaurant name, URL, deadline, and status (Open or Closed); it contains many **OrderItems**. Each **OrderItem** belongs to one round and one user, and has description, price, and optional notes. The arrows indicate cardinality: `1` → `*` means one entity relates to many.
 
 ---
 
@@ -84,22 +84,20 @@ sequenceDiagram
 
 ```mermaid
 erDiagram
-    AspNetUsers {
+    Users {
         string Id PK
-        string UserName
+        string CognitoUsername
         string Email
         string Company
-        bool EmailConfirmed
+        int TenantId FK
+        string Groups
     }
 
-    AspNetRoles {
-        string Id PK
+    Tenants {
+        int Id PK
         string Name
-    }
-
-    AspNetUserRoles {
-        string UserId FK
-        string RoleId FK
+        string Slug
+        bool IsActive
     }
 
     OrderRounds {
@@ -120,14 +118,13 @@ erDiagram
         string Notes
     }
 
-    AspNetUsers ||--o{ AspNetUserRoles : has
-    AspNetRoles ||--o{ AspNetUserRoles : has
-    AspNetUsers ||--o{ OrderRounds : "created by"
-    AspNetUsers ||--o{ OrderItems : "owns"
+    Users }o--|| Tenants : "belongs to"
+    Users ||--o{ OrderRounds : "created by"
+    Users ||--o{ OrderItems : "owns"
     OrderRounds ||--o{ OrderItems : contains
 ```
 
-**Explanation:** This ER diagram shows the database schema. **AspNetUsers** and **AspNetRoles** are ASP.NET Identity tables; **AspNetUserRoles** links users to roles (many-to-many). **OrderRounds** has a foreign key to the user who created it. **OrderItems** references both the order round and the user who added it. PK = primary key, FK = foreign key. The `||--o{` notation means "one to many" (one user creates many rounds; one round contains many items).
+**Explanation:** This ER diagram shows the database schema. **Users** stores Cognito-provisioned users (Id = Cognito sub); **Groups** is a comma-separated list of Cognito group names (e.g. Admins, Managers, Users). **OrderRounds** has a foreign key to the user who created it. **OrderItems** references both the order round and the user who added it. PK = primary key, FK = foreign key. The `||--o{` notation means "one to many" (one user creates many rounds; one round contains many items).
 
 ---
 
@@ -135,107 +132,33 @@ erDiagram
 
 Sequence diagrams show the order of messages between components over time. Read from top to bottom; arrows indicate requests (solid) and responses (dashed). `alt` blocks show alternative paths.
 
-### 3.1 Email/Password Registration Flow
+### 3.1 Cognito Login Flow
 
 ```mermaid
 sequenceDiagram
     participant U as User
     participant F as Frontend
+    participant C as Cognito Hosted UI
     participant A as AuthController
-    participant UM as UserManager
+    participant M as CognitoUserProvisioningMiddleware
     participant DB as DbContext
-    participant E as EmailService
 
-    U->>F: Submit register form
-    F->>A: POST /api/v1/auth/register
-    A->>UM: FindByEmailAsync
-    UM->>DB: Query
-    alt Email exists
-        DB-->>UM: User
-        UM-->>A: existing user
-        A-->>F: 400 BadRequest
-    else Email new
-        A->>UM: CreateAsync(user)
-        UM->>DB: Insert AspNetUsers
-        A->>UM: AddToRoleAsync(User)
-        A->>UM: GenerateEmailConfirmationTokenAsync
-        A->>E: SendEmailAsync(confirm link)
-        E-->>A: Sent
-        A-->>F: 200 OK
-    end
+    U->>F: Click "Sign in with Cognito"
+    F->>C: Redirect to Cognito Hosted UI
+    U->>C: Authenticate (email/password or SSO)
+    C->>F: Redirect /login#id_token=JWT
+    F->>F: Store token, call GET /auth/me
+    F->>A: GET /auth/me (Bearer token)
+    A->>M: JWT validated, provision AppUser
+    M->>DB: ProvisionOrFindAsync (from cognito:groups)
+    DB-->>M: AppUser
+    M->>A: Principal with tenant_id, groups
+    A-->>F: 200 OK { token, email, company, groups }
 ```
 
-**Explanation:** The user submits the registration form. The frontend sends `POST /api/v1/auth/register` to the AuthController. If the email already exists, the API returns 400. Otherwise, the controller creates the user, assigns the User role, generates an email confirmation token, and sends an email with the confirmation link. The user must click that link (separate flow) to confirm before logging in.
+**Explanation:** Authentication uses AWS Cognito for all environments. The user clicks "Sign in with Cognito" and is redirected to Cognito Hosted UI. After authenticating (email/password or SSO via Cognito Identity Providers), Cognito redirects back with an id_token. The frontend stores the token and calls `GET /auth/me`. The backend validates the JWT, provisions or finds the AppUser from Cognito claims (including cognito:groups), and returns user info. Groups (e.g. Admins, Managers, Users) are used for authorization.
 
-### 3.2 Email/Password Login Flow
-
-```mermaid
-sequenceDiagram
-    participant U as User
-    participant F as Frontend
-    participant A as AuthController
-    participant UM as UserManager
-    participant SM as SignInManager
-    participant JWT as JwtTokenService
-
-    U->>F: Submit login form
-    F->>A: POST /api/v1/auth/login
-    A->>UM: FindByEmailAsync
-    alt User not found
-        A-->>F: 401 Unauthorized
-    else User found
-        A->>A: Check EmailConfirmed
-        alt Not confirmed
-            A-->>F: 401 (confirm email)
-        else Confirmed
-            A->>SM: CheckPasswordSignInAsync
-            alt Invalid password
-                A-->>F: 401 Unauthorized
-            else Valid
-                A->>UM: GetRolesAsync
-                A->>JWT: GenerateToken
-                JWT-->>A: token
-                A-->>F: 200 OK { token, email, company }
-            end
-        end
-    end
-```
-
-**Explanation:** The user submits credentials. The AuthController looks up the user by email. If not found or email not confirmed, it returns 401. Otherwise, SignInManager validates the password. If valid, JwtTokenService generates a JWT, and the API returns the token with user info. The frontend stores the token for subsequent requests.
-
-### 3.3 SSO (Google/Microsoft) Flow
-
-```mermaid
-sequenceDiagram
-    participant U as User
-    participant F as Frontend
-    participant S as SsoController
-    participant IdP as IdP (Google/Microsoft)
-    participant B as Backend (OnTicketReceived)
-    participant UM as UserManager
-    participant JWT as JwtTokenService
-
-    U->>F: Click "Sign in with Google"
-    F->>S: GET /auth/sso/challenge?provider=Google
-    S->>IdP: Redirect (OAuth)
-    IdP->>U: Login page
-    U->>IdP: Authenticate
-    IdP->>B: Callback /signin-google
-    B->>B: Extract email, name from claims
-    B->>UM: FindByEmailAsync
-    alt User new
-        B->>UM: CreateAsync
-        B->>UM: AddToRoleAsync
-    end
-    B->>UM: GetRolesAsync
-    B->>JWT: GenerateToken
-    B->>F: Redirect /login#token=JWT
-    F->>F: loginWithToken, navigate
-```
-
-**Explanation:** The user clicks "Sign in with Google" (or Microsoft). The frontend redirects to the backend challenge endpoint, which redirects to the IdP (Google/Microsoft). After the user authenticates, the IdP calls back to `/signin-google` (or `/signin-microsoft`). The backend extracts email and name from claims, creates or finds the user, generates a JWT, and redirects to the frontend with the token in the URL fragment (`#token=...`). The frontend reads the fragment, stores the token, and navigates.
-
-### 3.4 Create Order Round Flow
+### 3.2 Create Order Round Flow
 
 ```mermaid
 sequenceDiagram
@@ -260,7 +183,7 @@ sequenceDiagram
 
 **Explanation:** The user submits the create-round form. The frontend sends `POST /api/v1/orderrounds` with the JWT in the Authorization header. The controller extracts the user ID from the token and delegates to OrderRoundHandler. The handler creates an OrderRound, saves it to the database, and returns the response. The API responds with 201 Created and a Location header; the frontend navigates to the new round's detail page.
 
-### 3.5 Add Item to Order Round Flow
+### 3.3 Add Item to Order Round Flow
 
 ```mermaid
 sequenceDiagram
@@ -295,28 +218,20 @@ sequenceDiagram
 
 Flowcharts show decision points and process steps. Diamonds are decisions; rectangles are actions. Arrows show flow direction.
 
-### 4.1 User Registration Process
+### 4.1 Cognito Registration / Login
 
 ```mermaid
 flowchart TD
-    A[User submits form] --> B{Email exists?}
-    B -->|Yes| C[Return 400 BadRequest]
-    B -->|No| D[Create user]
-    D --> E[Add to User role]
-    E --> F[Generate confirmation token]
-    F --> G[Send email with link]
-    G --> H[Return 200 OK]
-    H --> I[User checks email]
-    I --> J[Click confirm link]
-    J --> K[GET /confirm-email]
-    K --> L{Token valid?}
-    L -->|No| M[400 BadRequest]
-    L -->|Yes| N[ConfirmEmailAsync]
-    N --> O[Return 200 OK]
-    O --> P[User can login]
+    A[User visits login page] --> B[Redirect to Cognito Hosted UI]
+    B --> C[User signs up or signs in]
+    C --> D[Cognito returns id_token]
+    D --> E[Frontend stores token]
+    E --> F[GET /auth/me]
+    F --> G[Backend provisions AppUser from Cognito]
+    G --> H[User info returned with groups]
 ```
 
-**Explanation:** Registration is a two-step process. First, the user submits the form; if the email is new, the system creates the user, sends a confirmation email, and returns success. Second, the user must click the link in the email to confirm. Only after confirmation can the user log in. The flowchart shows both the API response path and the separate confirmation step.
+**Explanation:** Registration and login are handled entirely by AWS Cognito. Users sign up and sign in via Cognito Hosted UI. The frontend receives an id_token, stores it, and calls `GET /auth/me` to provision the AppUser in the backend and get user info (including groups).
 
 ### 4.2 Order Round Lifecycle
 
@@ -385,7 +300,6 @@ flowchart TD
 flowchart TB
     subgraph Frontend["Frontend (React)"]
         Login[LoginPage]
-        Register[RegisterPage]
         RoundsList[OrderRoundsPage]
         Detail[OrderRoundDetailPage]
         Export[ExportSummaryPage]
@@ -394,35 +308,28 @@ flowchart TB
 
     subgraph Backend["Backend (ASP.NET Core)"]
         AuthCtrl[AuthController]
-        SsoCtrl[SsoController]
         RoundsCtrl[OrderRoundsController]
         Handler[OrderRoundHandler]
-        Jwt[JwtTokenService]
+        Cognito[Cognito JWT + Provisioning]
     end
 
     subgraph Data["Data Layer"]
         Db[ApplicationDbContext]
-        Identity[ASP.NET Identity]
     end
 
     Login --> Api
-    Register --> Api
     RoundsList --> Api
     Detail --> Api
     Export --> Api
     Api --> AuthCtrl
-    Api --> SsoCtrl
     Api --> RoundsCtrl
-    AuthCtrl --> Jwt
-    AuthCtrl --> Identity
-    SsoCtrl --> Jwt
-    SsoCtrl --> Identity
+    AuthCtrl --> Cognito
     RoundsCtrl --> Handler
     Handler --> Db
-    Db --> Identity
+    Cognito --> Db
 ```
 
-**Explanation:** The component diagram shows how the application is split into layers. The **frontend** has five main pages and a shared API client (Axios) that all pages use. The **backend** has three controllers (Auth, SSO, OrderRounds) that delegate to handlers and services. The **data layer** uses ApplicationDbContext (EF Core) and ASP.NET Identity. Arrows show dependencies: e.g. the API client calls the controllers; the controllers use JWT and Identity; the handler uses the DbContext.
+**Explanation:** The component diagram shows how the application is split into layers. The **frontend** has main pages and a shared API client (Axios). Login redirects to Cognito Hosted UI; the API client calls AuthController (`/auth/me`) and OrderRoundsController. The **backend** uses Cognito JWT validation and CognitoUserProvisioningMiddleware to provision AppUser from Cognito claims. The **data layer** uses ApplicationDbContext (EF Core) with a Users table (no ASP.NET Identity).
 
 ---
 
@@ -455,7 +362,6 @@ flowchart TB
         Auth[Authentication]
         Authz[Authorization]
         AuthCtrl[AuthController]
-        SsoCtrl[SsoController]
         RoundsCtrl[OrderRoundsController]
         Handler[OrderRoundHandler]
     end
@@ -470,16 +376,14 @@ flowchart TB
     CORS --> Auth
     Auth --> Authz
     Authz --> AuthCtrl
-    Authz --> SsoCtrl
     Authz --> RoundsCtrl
     AuthCtrl --> Handler
-    SsoCtrl --> Handler
     RoundsCtrl --> Handler
     Handler --> EF
     EF --> PG
 ```
 
-**Explanation:** This diagram shows the runtime path of a request. The React SPA in the browser sends HTTP requests to the backend. Requests pass through **Rate Limiter** (auth endpoints), **CORS** (origin check), **Authentication** (JWT validation), and **Authorization** (role/permission check) before reaching the controllers. The controllers use OrderRoundHandler, which uses EF Core to read and write PostgreSQL. All three controllers (Auth, SSO, OrderRounds) can trigger handler or identity operations.
+**Explanation:** This diagram shows the runtime path of a request. The React SPA in the browser sends HTTP requests to the backend. Requests pass through **Rate Limiter** (auth endpoints), **CORS** (origin check), **Authentication** (JWT validation), and **Authorization** (role/permission check) before reaching the controllers. The controllers use OrderRoundHandler, which uses EF Core to read and write PostgreSQL. AuthController and OrderRoundsController use the handler; auth is Cognito JWT only.
 
 ---
 

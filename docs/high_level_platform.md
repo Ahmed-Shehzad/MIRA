@@ -1,8 +1,12 @@
 # 2. High-Level Task – AWS Cloud Platform for Digital Pathology AI
 
+> **Production architecture reference.** Production deployment follows this document strictly. See [production-architecture.md](production-architecture.md) for implementation mapping.
+>
+> For a structured overview of components, interactions, tools, and rationale, see [SYSTEM-ARCHITECTURE.md](SYSTEM-ARCHITECTURE.md).
+
 Cloud-native AI platform for Whole Slide Image (WSI) analysis, built on AWS to ensure scalability, security, and compliance with medical data requirements.
 
-**Tech stack:** AWS, ASP.NET Core (.NET 8), React (TypeScript), GPU-based inference on EKS
+**Tech stack:** AWS, ASP.NET Core (.NET 10), React (TypeScript), GPU-based inference on EKS
 
 ---
 
@@ -116,6 +120,8 @@ flowchart TB
 
 ## 2.2 Scalable GPU-Based Inference
 
+> For a structured answer covering scalability, cost efficiency, large image handling, and user progress, see [SCALABLE-GPU-INFERENCE.md](SCALABLE-GPU-INFERENCE.md).
+
 ### Strategy
 
 - Containerized inference service
@@ -151,6 +157,8 @@ flowchart TB
 
 WSIs are multi-resolution and very large. Viewers (e.g. [LazySlide](https://lazyslide.readthedocs.io/en/latest/tutorials/intro_wsi.html)) load only the visible region at the appropriate resolution. When the view changes, different parts/resolutions are loaded as small compressed chunks.
 
+> For performance and bottleneck considerations (cloud platform and user-side viewing), see [LARGE-FILE-HANDLING.md](LARGE-FILE-HANDLING.md).
+
 ### Client-Side Bottlenecks
 
 - **Bandwidth and latency** for tile fetches
@@ -177,6 +185,8 @@ WSIs are multi-resolution and very large. Viewers (e.g. [LazySlide](https://lazy
 ---
 
 ## 2.4 Project Management
+
+Given responsibility to build the platform with limited resources, the work is split as follows.
 
 ### Prioritization (MVP Thinking)
 
@@ -208,16 +218,25 @@ Goal: End-to-end working system.
 
 ---
 
-### Build vs Buy
+### Out-of-the-Box Solutions
 
 | Area | Approach | Rationale |
 |------|----------|------------|
 | WSI viewer | OpenSeadragon (OSS) | Mature, pyramid support |
 | Auth | Cognito | Managed, compliant |
 | Storage | S3 | Managed object storage |
-| Inference runtime | Custom container | Model-specific |
 | Job queue | SQS | Managed messaging |
+
+---
+
+### Custom Components
+
+| Area | Approach | Rationale |
+|------|----------|------------|
+| Inference runtime | Custom container | Model-specific, GPU orchestration |
 | Annotation UI | Custom or integrate | Depends on clinical workflow |
+| API layer, orchestration | Custom | Domain logic, compliance |
+| Tile generation / preprocessing | Custom or OSS (e.g. libvips) | WSI format support |
 
 ---
 

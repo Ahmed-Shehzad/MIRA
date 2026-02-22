@@ -1,6 +1,7 @@
 using HiveOrders.Api.Features.OrderRounds;
 using HiveOrders.Api.Shared.Data;
 using HiveOrders.Api.Shared.Infrastructure;
+using HiveOrders.Api.Shared.ValueObjects;
 using HiveOrders.Api.Tests;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
@@ -22,7 +23,7 @@ public class OrderRoundHandlerTests
     private static IOrderRoundHandler CreateHandler(ApplicationDbContext db, int tenantId = 1)
     {
         var tenantContext = new Mock<ITenantContext>();
-        tenantContext.Setup(t => t.TenantId).Returns(tenantId);
+        tenantContext.Setup(t => t.TenantId).Returns((TenantId?)new TenantId(tenantId));
         return new OrderRoundHandler(db, Mock.Of<IPublishEndpoint>(), tenantContext.Object);
     }
 
@@ -37,7 +38,7 @@ public class OrderRoundHandlerTests
             "https://pizza.example.com",
             DateTime.UtcNow.AddHours(2));
 
-        var result = await handler.CreateAsync(request, TestDbContextFactory.TestUserId);
+        var result = await handler.CreateAsync(request, (UserId)TestDbContextFactory.TestUserId);
 
         Assert.NotNull(result);
         Assert.True(result.Id > 0);
@@ -47,7 +48,7 @@ public class OrderRoundHandlerTests
 
         var stored = await db.OrderRounds.FindAsync(result.Id);
         Assert.NotNull(stored);
-        Assert.Equal(TestDbContextFactory.TestUserId, stored.CreatedByUserId);
+        Assert.Equal(TestDbContextFactory.TestUserId, stored.CreatedByUserId.Value);
     }
 
     [Fact]
@@ -60,9 +61,9 @@ public class OrderRoundHandlerTests
             "Sushi Bar",
             null,
             DateTime.UtcNow.AddHours(1));
-        var created = await handler.CreateAsync(createRequest, TestDbContextFactory.TestUserId);
+        var created = await handler.CreateAsync(createRequest, (UserId)TestDbContextFactory.TestUserId);
 
-        var result = await handler.GetByIdAsync(created.Id, TestDbContextFactory.TestUserId);
+        var result = await handler.GetByIdAsync((OrderRoundId)created.Id, (UserId)TestDbContextFactory.TestUserId);
 
         Assert.NotNull(result);
         Assert.Equal(created.Id, result.Id);
@@ -76,7 +77,7 @@ public class OrderRoundHandlerTests
         await using var db = await TestDbContextFactory.CreateWithSeedAsync(_fixture.ConnectionString);
         var handler = CreateHandler(db);
 
-        var result = await handler.GetByIdAsync(99999, TestDbContextFactory.TestUserId);
+        var result = await handler.GetByIdAsync((OrderRoundId)99999, (UserId)TestDbContextFactory.TestUserId);
 
         Assert.Null(result);
     }
@@ -88,10 +89,10 @@ public class OrderRoundHandlerTests
         var handler = CreateHandler(db);
         var created = await handler.CreateAsync(
             new CreateOrderRoundRequest("Cafe", null, DateTime.UtcNow.AddHours(3)),
-            TestDbContextFactory.TestUserId);
+            (UserId)TestDbContextFactory.TestUserId);
 
         var itemRequest = new CreateOrderItemRequest("Burger", 12.50m, "No onions");
-        var item = await handler.AddItemAsync(created.Id, itemRequest, TestDbContextFactory.OtherUserId);
+        var item = await handler.AddItemAsync((OrderRoundId)created.Id, itemRequest, (UserId)TestDbContextFactory.OtherUserId);
 
         Assert.NotNull(item);
         Assert.Equal(created.Id, item.OrderRoundId);
@@ -108,10 +109,10 @@ public class OrderRoundHandlerTests
         var handler = CreateHandler(db);
         var created = await handler.CreateAsync(
             new CreateOrderRoundRequest("Cafe", null, DateTime.UtcNow.AddHours(1)),
-            TestDbContextFactory.TestUserId);
-        await handler.UpdateAsync(created.Id, new UpdateOrderRoundRequest(null, null, null, Close: true), TestDbContextFactory.TestUserId);
+            (UserId)TestDbContextFactory.TestUserId);
+        await handler.UpdateAsync((OrderRoundId)created.Id, new UpdateOrderRoundRequest(null, null, null, Close: true), (UserId)TestDbContextFactory.TestUserId);
 
-        var item = await handler.AddItemAsync(created.Id, new CreateOrderItemRequest("Coffee", 3m, null), TestDbContextFactory.OtherUserId);
+        var item = await handler.AddItemAsync((OrderRoundId)created.Id, new CreateOrderItemRequest("Coffee", 3m, null), (UserId)TestDbContextFactory.OtherUserId);
 
         Assert.Null(item);
     }
@@ -123,9 +124,9 @@ public class OrderRoundHandlerTests
         var handler = CreateHandler(db);
         var created = await handler.CreateAsync(
             new CreateOrderRoundRequest("Cafe", null, DateTime.UtcNow.AddMinutes(-5)),
-            TestDbContextFactory.TestUserId);
+            (UserId)TestDbContextFactory.TestUserId);
 
-        var item = await handler.AddItemAsync(created.Id, new CreateOrderItemRequest("Coffee", 3m, null), TestDbContextFactory.OtherUserId);
+        var item = await handler.AddItemAsync((OrderRoundId)created.Id, new CreateOrderItemRequest("Coffee", 3m, null), (UserId)TestDbContextFactory.OtherUserId);
 
         Assert.Null(item);
     }
@@ -137,10 +138,10 @@ public class OrderRoundHandlerTests
         var handler = CreateHandler(db);
         var created = await handler.CreateAsync(
             new CreateOrderRoundRequest("Old Name", "https://old.com", DateTime.UtcNow.AddHours(2)),
-            TestDbContextFactory.TestUserId);
+            (UserId)TestDbContextFactory.TestUserId);
 
         var updateRequest = new UpdateOrderRoundRequest("New Name", "https://new.com", DateTime.UtcNow.AddHours(4), null);
-        var result = await handler.UpdateAsync(created.Id, updateRequest, TestDbContextFactory.TestUserId);
+        var result = await handler.UpdateAsync((OrderRoundId)created.Id, updateRequest, (UserId)TestDbContextFactory.TestUserId);
 
         Assert.NotNull(result);
         Assert.Equal("New Name", result.RestaurantName);
@@ -154,9 +155,9 @@ public class OrderRoundHandlerTests
         var handler = CreateHandler(db);
         var created = await handler.CreateAsync(
             new CreateOrderRoundRequest("Cafe", null, DateTime.UtcNow.AddHours(2)),
-            TestDbContextFactory.TestUserId);
+            (UserId)TestDbContextFactory.TestUserId);
 
-        var result = await handler.UpdateAsync(created.Id, new UpdateOrderRoundRequest("Hacked", null, null, null), TestDbContextFactory.OtherUserId);
+        var result = await handler.UpdateAsync((OrderRoundId)created.Id, new UpdateOrderRoundRequest("Hacked", null, null, null), (UserId)TestDbContextFactory.OtherUserId);
 
         Assert.Null(result);
     }
@@ -168,14 +169,14 @@ public class OrderRoundHandlerTests
         var handler = CreateHandler(db);
         var created = await handler.CreateAsync(
             new CreateOrderRoundRequest("Cafe", null, DateTime.UtcNow.AddHours(2)),
-            TestDbContextFactory.TestUserId);
-        var item = await handler.AddItemAsync(created.Id, new CreateOrderItemRequest("Tea", 2m, null), TestDbContextFactory.OtherUserId);
+            (UserId)TestDbContextFactory.TestUserId);
+        var item = await handler.AddItemAsync((OrderRoundId)created.Id, new CreateOrderItemRequest("Tea", 2m, null), (UserId)TestDbContextFactory.OtherUserId);
         Assert.NotNull(item);
 
-        var removed = await handler.RemoveItemAsync(created.Id, item.Id, TestDbContextFactory.OtherUserId);
+        var removed = await handler.RemoveItemAsync((OrderRoundId)created.Id, (OrderItemId)item.Id, (UserId)TestDbContextFactory.OtherUserId);
 
         Assert.True(removed);
-        var stillThere = await db.OrderItems.FindAsync(item.Id);
+        var stillThere = await db.OrderItems.FindAsync([item.Id]);
         Assert.Null(stillThere);
     }
 
@@ -186,11 +187,11 @@ public class OrderRoundHandlerTests
         var handler = CreateHandler(db);
         var created = await handler.CreateAsync(
             new CreateOrderRoundRequest("Cafe", null, DateTime.UtcNow.AddHours(2)),
-            TestDbContextFactory.TestUserId);
-        var item = await handler.AddItemAsync(created.Id, new CreateOrderItemRequest("Tea", 2m, null), TestDbContextFactory.OtherUserId);
+            (UserId)TestDbContextFactory.TestUserId);
+        var item = await handler.AddItemAsync((OrderRoundId)created.Id, new CreateOrderItemRequest("Tea", 2m, null), (UserId)TestDbContextFactory.OtherUserId);
         Assert.NotNull(item);
 
-        var removed = await handler.RemoveItemAsync(created.Id, item.Id, TestDbContextFactory.TestUserId);
+        var removed = await handler.RemoveItemAsync((OrderRoundId)created.Id, (OrderItemId)item.Id, (UserId)TestDbContextFactory.TestUserId);
 
         Assert.False(removed);
     }

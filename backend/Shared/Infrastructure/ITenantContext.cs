@@ -1,7 +1,9 @@
+using HiveOrders.Api.Shared.ValueObjects;
+
 namespace HiveOrders.Api.Shared.Infrastructure;
 
 public interface ITenantContext
 {
-    int? TenantId { get; }
+    TenantId? TenantId { get; }
     bool IsAdmin { get; }
 }

@@ -1,7 +1,7 @@
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/providers/auth-provider';
 
-const ADMIN_ROLE = 'Admin';
+const ADMIN_GROUP = 'Admins';
 
 export function AdminProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -19,7 +19,7 @@ export function AdminProtectedRoute({ children }: { children: React.ReactNode })
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  const isAdmin = user.roles?.includes(ADMIN_ROLE) ?? false;
+  const isAdmin = user.groups?.includes(ADMIN_GROUP) ?? false;
   if (!isAdmin) {
     return <Navigate to="/" replace />;
   }

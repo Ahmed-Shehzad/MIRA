@@ -2,7 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Npgsql;
 using HiveOrders.Api.Shared.Data;
 using HiveOrders.Api.Shared.Identity;
-using HiveOrders.Api.Features.OrderRounds;
+using HiveOrders.Api.Shared.ValueObjects;
 
 namespace HiveOrders.Api.Tests;
 
@@ -33,30 +33,36 @@ public static class TestDbContextFactory
 
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
             .UseNpgsql(connectionString)
+            .ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning))
             .Options;
 
         var db = new ApplicationDbContext(options);
         await db.Database.MigrateAsync();
 
         var tenant = await db.Tenants.FirstAsync();
-        var user1 = new ApplicationUser
+        var now = DateTimeOffset.UtcNow;
+        var user1 = new AppUser
         {
-            Id = TestUserId,
-            UserName = "creator@hive.local",
-            Email = "creator@hive.local",
-            EmailConfirmed = true,
+            Id = (UserId)TestUserId,
+            CognitoUsername = "creator@hive.local",
+            Email = (Email)"creator@hive.local",
             Company = "TestCo",
-            TenantId = tenant.Id
+            TenantId = tenant.Id,
+            Groups = [(UserGroup)DbInitializer.GroupUsers],
+            CreatedAt = now,
+            UpdatedAt = now
         };
 
-        var user2 = new ApplicationUser
+        var user2 = new AppUser
         {
-            Id = OtherUserId,
-            UserName = "other@hive.local",
-            Email = "other@hive.local",
-            EmailConfirmed = true,
+            Id = (UserId)OtherUserId,
+            CognitoUsername = "other@hive.local",
+            Email = (Email)"other@hive.local",
             Company = "TestCo",
-            TenantId = tenant.Id
+            TenantId = tenant.Id,
+            Groups = [(UserGroup)DbInitializer.GroupUsers],
+            CreatedAt = now,
+            UpdatedAt = now
         };
 
         db.Users.Add(user1);

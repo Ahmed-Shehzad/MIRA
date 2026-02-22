@@ -42,15 +42,19 @@ backend/
 │   ├── Data/         # DbContext, DbInitializer
 │   ├── Events/       # Domain events, MassTransit consumers
 │   ├── HttpClients/  # Refit clients, resilience
-│   ├── Identity/     # ApplicationUser
+│   ├── Identity/     # AppUser (Cognito-provisioned)
 │   └── Infrastructure/ # EmailService, ConfigureSwaggerOptions
 ├── Features/
-│   ├── Auth/         # AuthController, SsoController, JwtTokenService
+│   ├── Admin/        # AdminController, AdminService
+│   ├── Auth/         # AuthController, AuthService (Cognito JWT)
 │   ├── Bot/          # Teams bot, link service
 │   ├── Jobs/         # Hangfire jobs (recurring, reminders)
+│   ├── Notifications/# NotificationsController, NotificationService
 │   ├── OrderRounds/  # OrderRoundsController, OrderRoundHandler
-│   ├── Payments/     # Stripe, PaymentService, webhook
-│   └── RecurringOrders/ # RecurringOrderTemplate CRUD
+│   ├── Payments/     # Stripe, PaymentService, StripeWebhookHandler
+│   ├── RecurringOrders/ # RecurringOrderTemplate CRUD
+│   ├── Storage/      # StorageController, StorageHandler (presigned URLs)
+│   └── Wsi/          # WSI uploads, jobs, viewer
 └── Program.cs
 ```
 
@@ -59,8 +63,8 @@ backend/
 Workflows are decoupled via **MassTransit** with environment-based transport:
 
 - **Production**: **AWS SNS + SQS** (pub/sub) – MassTransit.AmazonSQS publishes to SNS topics, SQS queues subscribe; Apache 2.0 licensed
-- **Development**: **RabbitMQ** (Docker) – when `RabbitMQ:Host` is set
-- **Tests**: **InMemory** – when neither AWS nor RabbitMQ is configured
+- **Development**: **LocalStack** (Docker) – when `AWS:ServiceUrl` is set
+- **Tests**: **InMemory** – when neither AWS nor LocalStack is configured
 
 Events: **OrderRoundCreatedEvent**, **OrderItemAddedEvent**, **OrderRoundClosedEvent**, **PaymentCompletedEvent**. Consumers process asynchronously (logging, integrations). Jobs (recurring rounds, deadline reminders) are persisted in **PostgreSQL** via Hangfire.
 
@@ -100,12 +104,11 @@ flowchart TB
 
     subgraph Messaging [Messaging]
         SNS[AWS SNS/SQS]
-        RMQ[RabbitMQ]
+        LS[LocalStack]
     end
 
     subgraph Auth [Auth]
-        JWT[JWT]
-        SSO[SSO Google/Microsoft]
+        Cognito[AWS Cognito]
     end
 
     Browser -->|"api/v1/*"| API
@@ -114,8 +117,7 @@ flowchart TB
     API --> SNS
     EF --> PG
     Hangfire --> PG
-    API --> JWT
-    API --> SSO
+    API --> Cognito
 ```
 
 ### Authentication Flow
@@ -124,21 +126,16 @@ flowchart TB
 sequenceDiagram
     participant U as User
     participant F as Frontend
+    participant C as Cognito Hosted UI
     participant B as Backend
-    participant IdP as IdP (Google/Microsoft)
 
-    alt Email/Password
-        U->>F: Login form
-        F->>B: POST /auth/login
-        B->>F: JWT
-    else SSO (production)
-        U->>F: Sign in with Google/Microsoft
-        F->>B: GET /auth/sso/challenge?provider=Google
-        B->>IdP: Redirect
-        IdP->>B: Callback
-        B->>F: Redirect /login#token=JWT
-        F->>F: Store token
-    end
+    U->>F: Sign in with Cognito
+    F->>C: Redirect to Cognito Hosted UI
+    U->>C: Authenticate (email/password or SSO)
+    C->>F: Redirect /login#id_token=JWT
+    F->>F: Store token
+    F->>B: GET /auth/me (Bearer token)
+    B->>F: User info (email, company, groups)
 ```
 
 ### Frontend
@@ -163,7 +160,7 @@ Responsibilities:
 ASP.NET Core Web API (.NET 10):
 
 Responsibilities:
-- Authentication (ASP.NET Identity, JWT, SSO Google/Microsoft)
+- Authentication (AWS Cognito JWT; SSO via Cognito Identity Providers)
 - Email confirmation
 - Order management logic
 - Validation & authorization
@@ -177,11 +174,11 @@ Responsibilities:
 
 Entities:
 
-User (ASP.NET Identity)
-- Id
+User (AppUser, provisioned from Cognito)
+- Id (Cognito sub)
 - Email
 - Company
-- EmailConfirmed
+- Groups (cached from cognito:groups)
 
 OrderRound
 - Id
@@ -263,5 +260,5 @@ See [docs/system-architecture-diagrams.md](docs/system-architecture-diagrams.md)
 - API versioning & Swagger descriptions
 - **global.json** – SDK version pinning
 - **JsonPropertyName** – camelCase annotations on all DTOs
-- **Event-driven** – MassTransit + RabbitMQ; domain events published and consumed asynchronously
+- **Event-driven** – MassTransit + SNS/SQS; domain events published and consumed asynchronously
 - **Hangfire** – Jobs persisted in PostgreSQL; recurring rounds, deadline reminders

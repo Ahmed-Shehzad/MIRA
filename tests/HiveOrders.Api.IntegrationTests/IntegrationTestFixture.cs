@@ -22,8 +22,8 @@ public sealed class IntegrationTestFixture : IAsyncLifetime
         await _container.StartAsync();
         var connectionString = _container.GetConnectionString();
         Environment.SetEnvironmentVariable("ConnectionStrings__DefaultConnection", connectionString);
-        Environment.SetEnvironmentVariable("Testing__SkipEmailConfirmation", "true");
         Environment.SetEnvironmentVariable("Testing__SkipRateLimiting", "true");
+        Environment.SetEnvironmentVariable("Testing__UseLocalJwt", "true");
         Environment.SetEnvironmentVariable("Jwt__Key", HiveOrdersWebApplicationFactory.TestJwtKey);
         Environment.SetEnvironmentVariable("Jwt__Issuer", "HiveOrders");
         Environment.SetEnvironmentVariable("Jwt__Audience", "HiveOrders");

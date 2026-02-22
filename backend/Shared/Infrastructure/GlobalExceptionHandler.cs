@@ -7,16 +7,19 @@ namespace HiveOrders.Api.Shared.Infrastructure;
 
 public sealed class GlobalExceptionHandler : IExceptionHandler
 {
-    private readonly IExceptionReportService _reportService;
+    private readonly IServiceScopeFactory _scopeFactory;
+    private readonly IExceptionToStatusCodeMapper _statusCodeMapper;
     private readonly IHostEnvironment _environment;
     private readonly ILogger<GlobalExceptionHandler> _logger;
 
     public GlobalExceptionHandler(
-        IExceptionReportService reportService,
+        IServiceScopeFactory scopeFactory,
+        IExceptionToStatusCodeMapper statusCodeMapper,
         IHostEnvironment environment,
         ILogger<GlobalExceptionHandler> logger)
     {
-        _reportService = reportService;
+        _scopeFactory = scopeFactory;
+        _statusCodeMapper = statusCodeMapper;
         _environment = environment;
         _logger = logger;
     }
@@ -29,10 +32,13 @@ public sealed class GlobalExceptionHandler : IExceptionHandler
         _logger.LogError(exception, "Unhandled exception: {Message}", exception.Message);
 
         var report = await BuildExceptionReportAsync(httpContext, exception, cancellationToken);
-        _ = _reportService.SendReportAsync(report, cancellationToken);
+        using var scope = _scopeFactory.CreateScope();
+        var reportService = scope.ServiceProvider.GetRequiredService<IExceptionReportService>();
+        _ = reportService.SendReportAsync(report, cancellationToken);
 
         var problemDetails = CreateProblemDetails(exception);
-        httpContext.Response.StatusCode = problemDetails.Status ?? (int)HttpStatusCode.InternalServerError;
+        var statusCode = (int)_statusCodeMapper.Map(exception);
+        httpContext.Response.StatusCode = problemDetails.Status ?? statusCode;
         httpContext.Response.ContentType = "application/problem+json";
         await httpContext.Response.WriteAsJsonAsync(problemDetails, cancellationToken);
 
@@ -41,21 +47,13 @@ public sealed class GlobalExceptionHandler : IExceptionHandler
 
     private ProblemDetails CreateProblemDetails(Exception exception)
     {
-        var statusCode = exception switch
-        {
-            ArgumentNullException => HttpStatusCode.BadRequest,
-            ArgumentException => HttpStatusCode.BadRequest,
-            UnauthorizedAccessException => HttpStatusCode.Unauthorized,
-            KeyNotFoundException => HttpStatusCode.NotFound,
-            InvalidOperationException => HttpStatusCode.BadRequest,
-            _ => HttpStatusCode.InternalServerError
-        };
+        var statusCode = (int)_statusCodeMapper.Map(exception);
 
         var problemDetails = new ProblemDetails
         {
-            Type = $"https://httpstatuses.com/{(int)statusCode}",
+            Type = $"https://httpstatuses.com/{statusCode}",
             Title = exception.GetType().Name,
-            Status = (int)statusCode,
+            Status = statusCode,
             Detail = _environment.IsDevelopment()
                 ? exception.Message
                 : "An error occurred processing your request.",

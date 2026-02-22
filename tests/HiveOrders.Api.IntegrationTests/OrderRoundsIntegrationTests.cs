@@ -23,14 +23,9 @@ public class OrderRoundsIntegrationTests : IClassFixture<IntegrationTestFixture>
     {
         var client = CreateClient();
         var uniqueEmail = $"rounds-{Guid.NewGuid():N}@hive.local";
-        var registerRequest = new RegisterRequest(uniqueEmail, "Password1!", "TestCo");
-        var registerResponse = await client.PostAsJsonAsync("/api/v1/auth/register", registerRequest);
-        registerResponse.EnsureSuccessStatusCode();
-
-        var loginRequest = new LoginRequest(uniqueEmail, "Password1!");
-        var loginResponse = await client.PostAsJsonAsync("/api/v1/auth/login", loginRequest);
-        loginResponse.EnsureSuccessStatusCode();
-        var auth = await loginResponse.Content.ReadFromJsonAsync<AuthResponse>();
+        var response = await client.PostAsJsonAsync("/api/v1/auth/test-token", new TestTokenRequest(uniqueEmail, "TestCo"));
+        response.EnsureSuccessStatusCode();
+        var auth = await response.Content.ReadFromJsonAsync<AuthResponse>();
         Assert.NotNull(auth);
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", auth.Token);
         return client;
@@ -50,7 +45,6 @@ public class OrderRoundsIntegrationTests : IClassFixture<IntegrationTestFixture>
         Assert.True(round.Id > 0);
         Assert.Equal("Pizza Place", round.RestaurantName);
     }
-
 
     [Fact]
     public async Task GetOrderRounds_Authenticated_ReturnsList()

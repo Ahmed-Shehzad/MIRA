@@ -7,6 +7,9 @@
   <Folder Name="/backend/">
     <Project Path="backend/HiveOrders.Api.csproj" />
   </Folder>
+  <Folder Name="/workers/">
+    <Project Path="workers/wsi/HiveOrders.WsiWorker.csproj" />
+  </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/HiveOrders.Api.IntegrationTests/HiveOrders.Api.IntegrationTests.csproj" />
   </Folder>

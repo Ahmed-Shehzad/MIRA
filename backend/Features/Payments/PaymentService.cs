@@ -2,22 +2,26 @@ using Microsoft.EntityFrameworkCore;
 using HiveOrders.Api.Shared.Data;
 using HiveOrders.Api.Shared.Events;
 using HiveOrders.Api.Shared.Infrastructure;
+using HiveOrders.Api.Shared.ValueObjects;
 using MassTransit;
-using Stripe;
 
 namespace HiveOrders.Api.Features.Payments;
 
 public class PaymentService : IPaymentService
 {
     private readonly ApplicationDbContext _db;
-    private readonly IConfiguration _configuration;
+    private readonly IStripePaymentIntentClient _stripeClient;
     private readonly IPublishEndpoint _publishEndpoint;
     private readonly ITenantContext _tenantContext;
 
-    public PaymentService(ApplicationDbContext db, IConfiguration configuration, IPublishEndpoint publishEndpoint, ITenantContext tenantContext)
+    public PaymentService(
+        ApplicationDbContext db,
+        IStripePaymentIntentClient stripeClient,
+        IPublishEndpoint publishEndpoint,
+        ITenantContext tenantContext)
     {
         _db = db;
-        _configuration = configuration;
+        _stripeClient = stripeClient;
         _publishEndpoint = publishEndpoint;
         _tenantContext = tenantContext;
     }
@@ -25,48 +29,42 @@ public class PaymentService : IPaymentService
     public async Task<PaymentIntentResult> CreatePaymentIntentAsync(int orderRoundId, decimal amount, string userId, CancellationToken cancellationToken = default)
     {
         var tenantId = _tenantContext.TenantId ?? throw new UnauthorizedAccessException("Tenant context required.");
-        var round = await _db.OrderRounds.FirstOrDefaultAsync(o => o.Id == orderRoundId && o.TenantId == tenantId, cancellationToken);
-        if (round == null || round.CreatedByUserId != userId)
+        var roundId = (OrderRoundId)orderRoundId;
+        var uid = (UserId)userId;
+        var round = await _db.OrderRounds.FirstOrDefaultAsync(o => o.Id == roundId && o.TenantId == tenantId.Value, cancellationToken);
+        if (round == null || round.CreatedByUserId != uid)
             throw new InvalidOperationException("Order round not found or access denied.");
 
-        var secretKey = _configuration["Stripe:SecretKey"] ?? throw new InvalidOperationException("Stripe:SecretKey not configured.");
-        StripeConfiguration.ApiKey = secretKey;
-
         var amountInCents = (long)(amount * 100);
-        var options = new PaymentIntentCreateOptions
+        var metadata = new Dictionary<string, string>
         {
-            Amount = amountInCents,
-            Currency = "usd",
-            Metadata = new Dictionary<string, string>
-            {
-                ["OrderRoundId"] = orderRoundId.ToString(),
-                ["UserId"] = userId
-            }
+            ["OrderRoundId"] = orderRoundId.ToString(),
+            ["UserId"] = userId
         };
 
-        var service = new PaymentIntentService();
-        var intent = await service.CreateAsync(options, cancellationToken: cancellationToken);
+        var result = await _stripeClient.CreateAsync(amountInCents, "usd", metadata, cancellationToken);
 
         var payment = new Payment
         {
-            TenantId = tenantId,
-            OrderRoundId = orderRoundId,
-            UserId = userId,
-            StripePaymentIntentId = intent.Id,
-            Amount = amount,
+            TenantId = tenantId.Value,
+            OrderRoundId = roundId.Value,
+            UserId = uid,
+            StripePaymentIntentId = (StripePaymentIntentId)result.PaymentIntentId,
+            Amount = (Money)amount,
             Status = PaymentStatus.Pending
         };
 
         _db.Payments.Add(payment);
         await _db.SaveChangesAsync(cancellationToken);
 
-        return new PaymentIntentResult(intent.ClientSecret, intent.Id);
+        return new PaymentIntentResult(result.ClientSecret, result.PaymentIntentId);
     }
 
     public async Task<bool> HandlePaymentIntentSucceededAsync(string paymentIntentId, CancellationToken cancellationToken = default)
     {
+        var pid = (StripePaymentIntentId)paymentIntentId;
         var payment = await _db.Payments
-            .FirstOrDefaultAsync(p => p.StripePaymentIntentId == paymentIntentId, cancellationToken);
+            .FirstOrDefaultAsync(p => p.StripePaymentIntentId == pid, cancellationToken);
 
         if (payment == null)
             return false;
@@ -75,7 +73,7 @@ public class PaymentService : IPaymentService
         await _db.SaveChangesAsync(cancellationToken);
 
         await _publishEndpoint.Publish(new PaymentCompletedEvent(
-            payment.Id, payment.OrderRoundId, payment.UserId, payment.Amount), cancellationToken);
+            payment.Id, payment.OrderRoundId, payment.UserId.Value, payment.Amount.Value), cancellationToken);
 
         return true;
     }

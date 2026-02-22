@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using HiveOrders.Api.Shared.ValueObjects;
 
 namespace HiveOrders.Api.Shared.Identity;
 
@@ -10,9 +11,7 @@ public class Tenant
     [MaxLength(100)]
     public required string Name { get; set; }
 
-    [Required]
-    [MaxLength(50)]
-    public required string Slug { get; set; }
+    public TenantSlug Slug { get; set; }
 
     public bool IsActive { get; set; } = true;
 }
