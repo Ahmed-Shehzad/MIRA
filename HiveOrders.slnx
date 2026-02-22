@@ -1,0 +1,14 @@
+<Solution>
+  <Configurations>
+    <Platform Name="Any CPU" />
+    <Platform Name="x64" />
+    <Platform Name="x86" />
+  </Configurations>
+  <Folder Name="/backend/">
+    <Project Path="backend/HiveOrders.Api.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/HiveOrders.Api.IntegrationTests/HiveOrders.Api.IntegrationTests.csproj" />
+  </Folder>
+  <Project Path="tests/HiveOrders.Api.Tests/HiveOrders.Api.Tests.csproj" />
+</Solution>
