@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   uploadWsiFileWithProgress,
@@ -9,6 +9,7 @@ import {
 export function WsiUploadPage() {
   const navigate = useNavigate();
   const inputRef = useRef<HTMLInputElement>(null);
+  const progressFillRef = useRef<HTMLDivElement>(null);
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState<UploadProgress | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -31,6 +32,12 @@ export function WsiUploadPage() {
     }
   }
 
+  useEffect(() => {
+    if (progressFillRef.current && progress) {
+      progressFillRef.current.style.setProperty('--progress-percent', `${progress.percent}%`);
+    }
+  }, [progress]);
+
   return (
     <div className="mx-auto max-w-3xl px-6 py-8">
       <h1 className="mb-6 text-2xl font-bold text-gray-900">Upload WSI</h1>
@@ -44,6 +51,7 @@ export function WsiUploadPage() {
         onChange={handleChange}
         className="hidden"
         disabled={loading}
+        aria-label="Select Whole Slide Image file to upload"
       />
       <button
         type="button"
@@ -56,10 +64,7 @@ export function WsiUploadPage() {
       {progress && (
         <div className="mt-4">
           <div className="h-2 w-full rounded-full bg-gray-200">
-            <div
-              className="h-2 rounded-full bg-blue-600 transition-all duration-300"
-              style={{ width: `${progress.percent}%` }}
-            />
+            <div ref={progressFillRef} className="wsi-progress-fill" />
           </div>
           <p className="mt-1 text-sm text-gray-500">
             {progress.percent}% ({Math.round(progress.loaded / 1024 / 1024)} / {Math.round(progress.total / 1024 / 1024)} MB)

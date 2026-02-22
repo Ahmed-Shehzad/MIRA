@@ -14,7 +14,7 @@ export function ExportSummaryPage() {
         '--- Orders ---',
         ...round.items.map(
           (i) =>
-            `- ${i.description} | €${i.price.toFixed(2)} | ${i.userEmail}${i.notes ? ` (${i.notes})` : ''}`
+            `- ${i.description} | €${i.price.toFixed(2)} | ${i.userEmail}${i.notes ? ' (' + i.notes + ')' : ''}`
         ),
         '',
         `Total: €${round.items.reduce((s, i) => s + i.price, 0).toFixed(2)}`,

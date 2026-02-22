@@ -11,14 +11,14 @@ export function getCognitoLoginUrl(): string {
   if (!domain || !clientId) {
     throw new Error('Cognito domain and client ID must be configured when VITE_USE_COGNITO is true');
   }
-  const redirectUri = `${window.location.origin}/login`;
+  const redirectUri = `${globalThis.location.origin}/login`;
   const params = new URLSearchParams({
     client_id: clientId,
     response_type: 'token',
     scope: COGNITO_SCOPES,
     redirect_uri: redirectUri,
   });
-  const protocol = window.location.protocol === 'https:' ? 'https' : 'http';
+  const protocol = globalThis.location.protocol === 'https:' ? 'https' : 'http';
   return `${protocol}://${domain}/oauth2/authorize?${params.toString()}`;
 }
 
@@ -27,7 +27,7 @@ export function getCognitoLoginUrl(): string {
  * Call this on the login page when returning from Cognito Hosted UI.
  */
 export function parseCognitoRedirectHash(): { idToken: string; accessToken: string } | null {
-  const hash = window.location.hash.slice(1);
+  const hash = globalThis.location.hash.slice(1);
   if (!hash) return null;
   const params = new URLSearchParams(hash);
   const idToken = params.get('id_token');
@@ -42,7 +42,7 @@ export function parseCognitoRedirectHash(): { idToken: string; accessToken: stri
  * Clears the Cognito tokens from the URL hash without reloading.
  */
 export function clearCognitoHash(): void {
-  if (window.location.hash) {
-    window.history.replaceState(null, '', window.location.pathname + window.location.search);
+  if (globalThis.location.hash) {
+    globalThis.history.replaceState(null, '', globalThis.location.pathname + globalThis.location.search);
   }
 }

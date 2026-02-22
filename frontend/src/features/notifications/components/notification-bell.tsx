@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, type ReactNode } from 'react';
 import { useNotifications, useMarkNotificationRead } from '../hooks/use-notifications';
 
 function formatTime(iso: string) {
@@ -29,13 +29,45 @@ export function NotificationBell() {
 
   const unreadCount = notifications.length;
 
+  let notificationContent: ReactNode;
+  if (isLoading) {
+    notificationContent = (
+      <div className="px-4 py-6 text-center text-sm text-gray-500">Loading...</div>
+    );
+  } else if (notifications.length === 0) {
+    notificationContent = (
+      <div className="px-4 py-6 text-center text-sm text-gray-500">No new notifications</div>
+    );
+  } else {
+    notificationContent = (
+      <ul className="divide-y divide-gray-100">
+        {notifications.map((n) => (
+          <li key={n.id} className="hover:bg-gray-50">
+            <button
+              type="button"
+              className="w-full px-4 py-3 text-left"
+              onClick={() => {
+                markRead.mutate(n.id);
+                setOpen(false);
+              }}
+            >
+              <p className="text-sm font-medium text-gray-900">{n.title}</p>
+              {n.body && <p className="mt-0.5 text-xs text-gray-600 line-clamp-2">{n.body}</p>}
+              <p className="mt-1 text-xs text-gray-400">{formatTime(n.createdAt)}</p>
+            </button>
+          </li>
+        ))}
+      </ul>
+    );
+  }
+
   return (
     <div className="relative" ref={ref}>
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
         className="relative rounded-full p-2 text-gray-600 hover:bg-gray-100 hover:text-gray-900"
-        aria-label={`Notifications ${unreadCount > 0 ? `(${unreadCount} unread)` : ''}`}
+        aria-label={unreadCount > 0 ? `Notifications (${unreadCount} unread)` : 'Notifications'}
       >
         <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path
@@ -57,32 +89,7 @@ export function NotificationBell() {
           <div className="border-b border-gray-200 bg-gray-50 px-4 py-3">
             <h3 className="text-sm font-semibold text-gray-900">Notifications</h3>
           </div>
-          <div className="max-h-80 overflow-y-auto">
-            {isLoading ? (
-              <div className="px-4 py-6 text-center text-sm text-gray-500">Loading...</div>
-            ) : notifications.length === 0 ? (
-              <div className="px-4 py-6 text-center text-sm text-gray-500">No new notifications</div>
-            ) : (
-              <ul className="divide-y divide-gray-100">
-                {notifications.map((n) => (
-                  <li key={n.id} className="hover:bg-gray-50">
-                    <button
-                      type="button"
-                      className="w-full px-4 py-3 text-left"
-                      onClick={() => {
-                        markRead.mutate(n.id);
-                        setOpen(false);
-                      }}
-                    >
-                      <p className="text-sm font-medium text-gray-900">{n.title}</p>
-                      {n.body && <p className="mt-0.5 text-xs text-gray-600 line-clamp-2">{n.body}</p>}
-                      <p className="mt-1 text-xs text-gray-400">{formatTime(n.createdAt)}</p>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
+          <div className="max-h-80 overflow-y-auto">{notificationContent}</div>
         </div>
       )}
     </div>

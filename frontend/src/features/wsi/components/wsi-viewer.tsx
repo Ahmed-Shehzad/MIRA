@@ -48,8 +48,7 @@ export function WsiViewer({ tileSourceUrl, className = '' }: Readonly<WsiViewerP
   return (
     <div
       ref={containerRef}
-      className={`min-h-[400px] bg-gray-100 ${className}`}
-      style={{ width: '100%', height: '500px' }}
+      className={`h-[500px] w-full min-h-[400px] bg-gray-100 ${className}`}
     />
   );
 }

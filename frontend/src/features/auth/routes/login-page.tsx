@@ -13,6 +13,10 @@ const COGNITO_ERROR_MESSAGES: Record<string, string> = {
   invalid_scope: 'Invalid scope requested.',
 };
 
+function handleCognitoLogin(): void {
+  globalThis.location.href = getCognitoLoginUrl();
+}
+
 interface TestTokenResponse {
   token: string;
 }
@@ -46,34 +50,32 @@ export function LoginPage() {
     }
   }, [useCognito, location.hash, loginWithToken, navigate, from]);
 
-  async function handleDevLogin(e: React.FormEvent) {
+  const handleDevLogin: React.SubmitEventHandler<HTMLFormElement> = (e) => {
     e.preventDefault();
-    setError('');
-    setSubmitting(true);
-    try {
-      const res = await fetch(`${config.apiUrl}/api/v1/auth/test-token`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, company }),
-      });
-      if (!res.ok) {
-        const text = await res.text();
-        setError(text || 'Failed to get test token');
-        return;
+    void (async () => {
+      setError('');
+      setSubmitting(true);
+      try {
+        const res = await fetch(`${config.apiUrl}/api/v1/auth/test-token`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, company }),
+        });
+        if (!res.ok) {
+          const text = await res.text();
+          setError(text || 'Failed to get test token');
+          return;
+        }
+        const data = (await res.json()) as TestTokenResponse;
+        await loginWithToken(data.token);
+        navigate(from, { replace: true });
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Network error');
+      } finally {
+        setSubmitting(false);
       }
-      const data = (await res.json()) as TestTokenResponse;
-      await loginWithToken(data.token);
-      navigate(from, { replace: true });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Network error');
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  function handleCognitoLogin() {
-    window.location.href = getCognitoLoginUrl();
-  }
+    })();
+  };
 
   return (
     <div className="mx-auto mt-16 max-w-md rounded-lg bg-white p-8 shadow-md">

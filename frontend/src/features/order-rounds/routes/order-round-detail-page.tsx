@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useAuth } from '@/providers/auth-provider';
 import {
@@ -25,22 +25,24 @@ export function OrderRoundDetailPage() {
   const deadlinePassed = round ? new Date(round.deadline) < new Date() : false;
   const canAddItems = isOpen && !deadlinePassed;
 
-  async function handleAddItem(e: React.FormEvent) {
+  const handleAddItem: React.SubmitEventHandler<HTMLFormElement> = (e) => {
     e.preventDefault();
     if (!id || !canAddItems) return;
-    try {
-      await addItemMutation.mutateAsync({
-        description: desc,
-        price: parseFloat(price) || 0,
-        notes: notes || null,
-      });
-      setDesc('');
-      setPrice('');
-      setNotes('');
-    } catch {
-      // ignore
-    }
-  }
+    void (async () => {
+      try {
+        await addItemMutation.mutateAsync({
+          description: desc,
+          price: Number.parseFloat(price) || 0,
+          notes: notes || null,
+        });
+        setDesc('');
+        setPrice('');
+        setNotes('');
+      } catch {
+        // ignore
+      }
+    })();
+  };
 
   async function handleRemoveItem(itemId: number) {
     if (!id || !canAddItems) return;
@@ -61,10 +63,24 @@ export function OrderRoundDetailPage() {
   }
 
   const total = round?.items.reduce((sum, i) => sum + i.price, 0) ?? 0;
-  const timeLeft =
-    round && isOpen && !deadlinePassed
-      ? Math.max(0, Math.floor((new Date(round.deadline).getTime() - Date.now()) / 60000))
-      : 0;
+  const [timeLeft, setTimeLeft] = useState(0);
+
+  useEffect(() => {
+    if (!round || !isOpen || deadlinePassed) {
+      const id = setTimeout(() => setTimeLeft(0), 0);
+      return () => clearTimeout(id);
+    }
+    const update = () =>
+      setTimeLeft(
+        Math.max(0, Math.floor((new Date(round.deadline).getTime() - Date.now()) / 60000)),
+      );
+    const timeoutId = setTimeout(update, 0);
+    const intervalId = setInterval(update, 60000);
+    return () => {
+      clearTimeout(timeoutId);
+      clearInterval(intervalId);
+    };
+  }, [round, isOpen, deadlinePassed]);
 
   if (isLoading || !round) {
     return (

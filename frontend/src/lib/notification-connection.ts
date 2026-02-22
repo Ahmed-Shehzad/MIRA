@@ -26,6 +26,30 @@ function createSignalRConnection(): NotificationConnection {
   };
 }
 
+function handleWebSocketMessage(
+  data: string,
+  handlers: ((payload: NotificationPayload) => void)[],
+): void {
+  try {
+    const payload = JSON.parse(data) as NotificationPayload;
+    handlers.forEach((h) => h(payload));
+  } catch {
+    // ignore non-JSON
+  }
+}
+
+function connectWebSocket(
+  wsUrl: string,
+  handlers: ((payload: NotificationPayload) => void)[],
+): Promise<WebSocket> {
+  return new Promise((resolve, reject) => {
+    const ws = new WebSocket(wsUrl);
+    ws.onopen = () => resolve(ws);
+    ws.onerror = () => reject(new Error('WebSocket connection failed'));
+    ws.onmessage = (e) => handleWebSocketMessage(e.data, handlers);
+  });
+}
+
 function createWebSocketConnection(): NotificationConnection {
   const token = localStorage.getItem('token');
   const wsUrl = config.webSocketUrl + (token ? `?token=${encodeURIComponent(token)}` : '');
@@ -38,19 +62,7 @@ function createWebSocketConnection(): NotificationConnection {
       handlers.push(callback);
     },
     async start() {
-      return new Promise<void>((resolve, reject) => {
-        ws = new WebSocket(wsUrl);
-        ws.onopen = () => resolve();
-        ws.onerror = () => reject(new Error('WebSocket connection failed'));
-        ws.onmessage = (e) => {
-          try {
-            const payload = JSON.parse(e.data) as NotificationPayload;
-            handlers.forEach((h) => h(payload));
-          } catch {
-            // ignore non-JSON
-          }
-        };
-      });
+      ws = await connectWebSocket(wsUrl, handlers);
     },
     async stop() {
       ws?.close();

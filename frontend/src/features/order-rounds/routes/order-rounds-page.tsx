@@ -1,8 +1,36 @@
 import { Link } from 'react-router-dom';
+import type { ReactNode } from 'react';
 import { useOrderRounds } from '@/features/order-rounds/hooks/use-order-rounds';
 
 export function OrderRoundsPage() {
   const { data: rounds = [], isLoading } = useOrderRounds();
+
+  let content: ReactNode;
+  if (isLoading) {
+    content = <p className="text-gray-600">Loading...</p>;
+  } else if (rounds.length === 0) {
+    content = <p className="text-gray-600">No order rounds yet. Create one to get started.</p>;
+  } else {
+    content = (
+      <ul className="space-y-2">
+        {rounds.map((r) => (
+          <li key={r.id}>
+            <Link
+              to={`/rounds/${r.id}`}
+              className="block rounded-lg bg-white p-4 shadow-sm transition-shadow hover:shadow-md"
+            >
+              <strong className="block text-gray-900">{r.restaurantName}</strong>
+              <span className="block text-sm text-gray-500">
+                Deadline: {new Date(r.deadline).toLocaleString()}
+              </span>
+              <span className="block text-sm text-gray-500">Status: {r.status}</span>
+              <span className="block text-sm text-gray-500">Items: {r.itemCount ?? 0}</span>
+            </Link>
+          </li>
+        ))}
+      </ul>
+    );
+  }
 
   return (
     <div className="mx-auto max-w-3xl px-6 py-8">
@@ -15,29 +43,7 @@ export function OrderRoundsPage() {
           Create Order Round
         </Link>
       </div>
-      {isLoading ? (
-        <p className="text-gray-600">Loading...</p>
-      ) : rounds.length === 0 ? (
-        <p className="text-gray-600">No order rounds yet. Create one to get started.</p>
-      ) : (
-        <ul className="space-y-2">
-          {rounds.map((r) => (
-            <li key={r.id}>
-              <Link
-                to={`/rounds/${r.id}`}
-                className="block rounded-lg bg-white p-4 shadow-sm transition-shadow hover:shadow-md"
-              >
-                <strong className="block text-gray-900">{r.restaurantName}</strong>
-                <span className="block text-sm text-gray-500">
-                  Deadline: {new Date(r.deadline).toLocaleString()}
-                </span>
-                <span className="block text-sm text-gray-500">Status: {r.status}</span>
-                <span className="block text-sm text-gray-500">Items: {r.itemCount ?? 0}</span>
-              </Link>
-            </li>
-          ))}
-        </ul>
-      )}
+      {content}
     </div>
   );
 }

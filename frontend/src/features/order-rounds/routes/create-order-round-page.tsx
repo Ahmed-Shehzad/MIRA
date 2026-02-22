@@ -17,20 +17,22 @@ export function CreateOrderRoundPage() {
     return d.toISOString().slice(0, 16);
   };
 
-  async function handleSubmit(e: React.FormEvent) {
+  const handleSubmit: React.SubmitEventHandler<HTMLFormElement> = (e) => {
     e.preventDefault();
-    setError('');
-    try {
-      const data = await createMutation.mutateAsync({
-        restaurantName,
-        restaurantUrl: restaurantUrl || null,
-        deadline: new Date(deadline || defaultDeadline()).toISOString(),
-      });
-      navigate(`/rounds/${data.id}`);
-    } catch {
-      setError('Failed to create order round');
-    }
-  }
+    void (async () => {
+      setError('');
+      try {
+        const data = await createMutation.mutateAsync({
+          restaurantName,
+          restaurantUrl: restaurantUrl || null,
+          deadline: new Date(deadline || defaultDeadline()).toISOString(),
+        });
+        navigate(`/rounds/${data.id}`);
+      } catch {
+        setError('Failed to create order round');
+      }
+    })();
+  };
 
   return (
     <div className="mx-auto max-w-3xl px-6 py-8">

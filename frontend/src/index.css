@@ -6,3 +6,11 @@ body {
   background-color: #f3f4f6;
   font-family: system-ui, -apple-system, sans-serif;
 }
+
+.wsi-progress-fill {
+  width: var(--progress-percent, 0%);
+  height: 0.5rem;
+  border-radius: 9999px;
+  background-color: rgb(37 99 235);
+  transition: all 300ms;
+}
