@@ -19,6 +19,7 @@
 | 7 | [AWS Cloud Platform](#docshigh_level_platformmd) | WSI architecture, GPU inference, phases |
 | 7a | [Project Management](#24-project-management) | Prioritization, build vs buy, outsourcing, hiring |
 | 7b | [Vision & Next Steps](#25-vision--next-steps) | Long-term vision, immediate and medium-term actions |
+| 7c | [Approach, Problem-Solving, Critical Thinking & Creativity](#how-we-define-approach-problem-solving-critical-thinking--creativity) | How we define and apply these in practice |
 | 8 | [Production Configuration](#docsproduction-configmd) | Environment variables, config |
 | 9 | [Production Architecture](#production-architecture) | Deployment, CI/CD, EKS, scaling |
 | 10 | [System Architecture](#system-architecture) | Components, tools, implementation status |
@@ -1220,6 +1221,22 @@ Assume it would be your responsibility to build such a platform within the featu
 - Design for compliance from day one
 - Keep ML services containerized
 - Build modular for future multi-modal AI integration
+
+---
+
+<a id="how-we-define-approach-problem-solving-critical-thinking--creativity"></a>
+## How We Define: Approach, Problem-Solving, Critical Thinking & Creativity
+
+*The goal is to understand how we work—not to deliver a perfect or complete solution.*
+
+| Term | Definition |
+|------|------------|
+| **Approach** | The deliberate way we tackle work: plan before implement, use vertical slices, favor clarity over cleverness. We choose tools and patterns that fit the problem, document decisions, and iterate based on feedback. |
+| **Problem-solving** | Breaking down ambiguity into concrete steps: identify root cause (e.g. 503 from MassTransit health check, not PostgreSQL), test hypotheses, apply minimal fixes, verify. We prefer targeted fixes over broad rewrites. |
+| **Critical thinking** | Questioning assumptions and evidence: "Is this the real cause?" "What does the log actually say?" "Does this fix the symptom or the cause?" We avoid cargo-cult solutions and verify before concluding. |
+| **Creativity** | Finding practical alternatives within constraints: build vs buy, custom vs off-the-shelf, retry vs exclude, document vs code. Creativity here means choosing the right level of solution for the context. |
+
+In practice, these overlap: a good approach includes problem-solving; critical thinking sharpens both; creativity helps when standard patterns don't fit.
 
 ---
 
