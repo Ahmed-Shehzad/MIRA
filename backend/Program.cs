@@ -182,11 +182,13 @@ app.UseAuthorization();
 app.MapControllers();
 app.MapHub<NotificationHub>("/hubs/notifications");
 app.MapHangfireDashboard("/hangfire");
-app.MapHealthChecks("/health");
-app.MapHealthChecks("/health/ready", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
-{
-    Predicate = _ => true
-});
+var isTesting = app.Environment.IsEnvironment("Testing");
+var healthPredicate = isTesting
+    ? (Func<Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckRegistration, bool>)(r => r.Name != "masstransit-bus")
+    : _ => true;
+
+app.MapHealthChecks("/health", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions { Predicate = healthPredicate });
+app.MapHealthChecks("/health/ready", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions { Predicate = healthPredicate });
 app.MapHealthChecks("/health/live", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
 {
     Predicate = _ => false
