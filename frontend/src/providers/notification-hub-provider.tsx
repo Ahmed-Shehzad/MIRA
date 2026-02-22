@@ -3,7 +3,7 @@ import {
   type NotificationConnection,
   type NotificationPayload,
 } from "@/lib/notification-connection";
-import { useAuth } from "@/providers/auth-provider";
+import { useAuth } from "@/providers/use-auth";
 import {
   NotificationHubContext,
   type NotificationHubContextType,

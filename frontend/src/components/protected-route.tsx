@@ -1,7 +1,9 @@
-import { Navigate, useLocation } from 'react-router-dom';
-import { useAuth } from '@/providers/auth-provider';
+import { useAuth } from "@/providers/use-auth";
+import { Navigate, useLocation } from "react-router-dom";
 
-export function ProtectedRoute({ children }: { children: React.ReactNode }) {
+export function ProtectedRoute({
+  children,
+}: Readonly<{ children: React.ReactNode }>) {
   const { user, loading } = useAuth();
   const location = useLocation();
 

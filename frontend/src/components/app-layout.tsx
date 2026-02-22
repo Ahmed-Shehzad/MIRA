@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { useAuth } from '@/providers/auth-provider';
+import { useAuth } from "@/providers/use-auth";
 import { NotificationBell } from '@/features/notifications/components/notification-bell';
 import { PushEnableButton } from '@/features/notifications/components/push-enable-button';
 
@@ -9,7 +9,7 @@ interface AppLayoutProps {
   children: React.ReactNode;
 }
 
-export function AppLayout({ children }: AppLayoutProps) {
+export function AppLayout({ children }: Readonly<AppLayoutProps>) {
   const { user, logout } = useAuth();
   const isAdmin = user?.groups?.includes(ADMIN_GROUP) ?? false;
 

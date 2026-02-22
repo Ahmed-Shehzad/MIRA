@@ -47,6 +47,7 @@ export function FileUploadButton({
         onChange={handleChange}
         className="hidden"
         disabled={loading}
+        aria-label="Select file to upload"
       />
       <button
         type="button"

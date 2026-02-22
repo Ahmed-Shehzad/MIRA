@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { useAuth } from '@/providers/auth-provider';
+import { useAuth } from "@/providers/use-auth";
 import { config } from '@/config/env';
 import {
   getCognitoLoginUrl,

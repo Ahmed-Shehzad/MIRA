@@ -1,9 +1,11 @@
-import { Navigate, useLocation } from 'react-router-dom';
-import { useAuth } from '@/providers/auth-provider';
+import { useAuth } from "@/providers/use-auth";
+import { Navigate, useLocation } from "react-router-dom";
 
-const ADMIN_GROUP = 'Admins';
+const ADMIN_GROUP = "Admins";
 
-export function AdminProtectedRoute({ children }: { children: React.ReactNode }) {
+export function AdminProtectedRoute({
+  children,
+}: Readonly<{ children: React.ReactNode }>) {
   const { user, loading } = useAuth();
   const location = useLocation();
 
