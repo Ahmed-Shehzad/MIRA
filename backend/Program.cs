@@ -113,7 +113,6 @@ builder.Services.AddApiVersioning(options =>
     options.SubstituteApiVersionInUrl = true;
 });
 
-builder.Services.AddSignalR();
 builder.Services.AddControllers();
 builder.Services.AddTransient<IConfigureOptions<SwaggerGenOptions>, ConfigureSwaggerOptions>();
 builder.Services.AddSwaggerGen();
@@ -180,7 +179,6 @@ app.UseMiddleware<CognitoUserProvisioningMiddleware>();
 app.UseMiddleware<TenantIdRlsMiddleware>();
 app.UseAuthorization();
 app.MapControllers();
-app.MapHub<NotificationHub>("/hubs/notifications");
 app.MapHangfireDashboard("/hangfire");
 var isTesting = app.Environment.IsEnvironment("Testing");
 var healthPredicate = isTesting

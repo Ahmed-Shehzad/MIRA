@@ -318,7 +318,7 @@ Production follows [AWS Cloud Platform](#2-high-level-task--aws-cloud-platform-f
 | Metadata | **RDS PostgreSQL** | Connection string |
 | Job Queue | **SQS** | MassTransit.AmazonSQS; DLQ (maxReceiveCount: 5) for failed messages |
 | Compute | **EKS** / ECS | Container deployment |
-| Real-time | WebSocket / AppSync | SignalR in dev; WebSocket API or AppSync in prod |
+| Real-time | WebSocket / AppSync | API Gateway WebSocket in prod; polling fallback in dev |
 | CDN | **CloudFront** | Frontend static assets; custom domain via `frontendSubdomain` |
 | Monitoring | **CloudWatch**, **X-Ray** | Logs, metrics, DLQ alarm; X-Ray when `enableXRayTracing=true` |
 
@@ -857,7 +857,7 @@ Implemented: Tenant entity, TenantId on all entities, tenant-aware authorization
 
 ### 5️⃣ Notifications ✅
 
-Implemented: Email reminders before deadline (configurable minutes). In-app alerts via `GET /api/v1/notifications/unread` and `POST /api/v1/notifications/{id}/read`. Push subscription and delivery: PushNotificationService, service worker, PushEnableButton. DeadlineReminderJob sends email, in-app (SignalR), and web push.
+Implemented: Email reminders before deadline (configurable minutes). In-app alerts via `GET /api/v1/notifications/unread` and `POST /api/v1/notifications/{id}/read`. Push subscription and delivery: PushNotificationService, service worker, PushEnableButton. DeadlineReminderJob sends email, in-app (API Gateway WebSocket or polling), and web push.
 
 ---
 
@@ -1069,7 +1069,7 @@ Assume it would be your responsibility to build such a platform within the featu
 
 - SQS queue (decouple API from workers)
 - EKS auto-scaling for GPU workers
-- WebSocket/SignalR for real-time job status
+- API Gateway WebSocket for real-time job status
 - Monitoring (CloudWatch, Serilog)
 - CI/CD (GitHub Actions → ECR, EKS)
 
@@ -1183,7 +1183,7 @@ Assume it would be your responsibility to build such a platform within the featu
 | 1 | Harden production config | DevOps | Secrets in AWS Secrets Manager; RDS, S3, Cognito verified |
 | 2 | Enable CI/CD | DevOps | GitHub Actions → ECR, EKS/ECS; green pipeline on main |
 | 3 | WSI worker in EKS | Backend/DevOps | Deploy worker container; IRSA for S3/SQS; verify end-to-end analysis |
-| 4 | Real-time job status | Backend | SignalR or WebSocket for WSI job progress in UI |
+| 4 | Real-time job status | Backend | API Gateway WebSocket for WSI job progress in UI |
 | 5 | Security review | Security | Auth flows, tenant isolation, logging of sensitive access |
 
 **Short-term (1–3 months)**
@@ -1456,7 +1456,7 @@ Cloud-native platform for WSI analysis on AWS.
 | Metadata | RDS PostgreSQL |
 | Job Queue | SQS |
 | Compute | EKS (or ECS Fargate) |
-| Real-time | SignalR / API Gateway WebSocket |
+| Real-time | API Gateway WebSocket / polling fallback |
 | Monitoring | CloudWatch, X-Ray |
 
 **Implementation status:** Auth, upload pipeline, WSI metadata/jobs, manual analysis trigger, job queue (MassTransit/SQS), WSI viewer, GPU worker (mock in dev / .NET Worker in prod).

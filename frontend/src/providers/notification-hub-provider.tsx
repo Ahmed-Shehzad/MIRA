@@ -45,7 +45,7 @@ export function NotificationHubProvider({
 
     connection
       .start()
-      .catch((err) => console.error("SignalR connection failed:", err));
+      .catch((err) => console.error("Notification connection failed:", err));
 
     return () => {
       connection.stop().catch(() => {});

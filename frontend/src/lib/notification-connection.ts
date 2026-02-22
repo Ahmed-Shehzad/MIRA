@@ -1,5 +1,5 @@
-import * as signalR from '@microsoft/signalr';
 import { config } from '@/config/env';
+import { api } from '@/lib/api';
 
 export type NotificationPayload = { type: string; title: string; body?: string };
 
@@ -7,23 +7,6 @@ export interface NotificationConnection {
   on(event: string, callback: (payload: NotificationPayload) => void): void;
   start(): Promise<void>;
   stop(): Promise<void>;
-}
-
-function createSignalRConnection(): NotificationConnection {
-  const token = localStorage.getItem('token');
-  const hubUrl = `${config.apiUrl}/hubs/notifications`;
-  const hub = new signalR.HubConnectionBuilder()
-    .withUrl(hubUrl, { accessTokenFactory: () => token ?? '' })
-    .withAutomaticReconnect()
-    .build();
-
-  return {
-    on(event: string, callback: (payload: NotificationPayload) => void) {
-      hub.on(event, callback);
-    },
-    start: () => hub.start(),
-    stop: () => hub.stop(),
-  };
 }
 
 function handleWebSocketMessage(
@@ -52,7 +35,8 @@ function connectWebSocket(
 
 function createWebSocketConnection(): NotificationConnection {
   const token = localStorage.getItem('token');
-  const wsUrl = config.webSocketUrl + (token ? `?token=${encodeURIComponent(token)}` : '');
+  const wsUrl =
+    config.webSocketUrl + (token ? `?token=${encodeURIComponent(token)}` : '');
   let ws: WebSocket | null = null;
 
   const handlers: ((payload: NotificationPayload) => void)[] = [];
@@ -71,9 +55,49 @@ function createWebSocketConnection(): NotificationConnection {
   };
 }
 
+function createPollingConnection(): NotificationConnection {
+  const POLL_INTERVAL_MS = 30_000;
+  let intervalId: ReturnType<typeof setInterval> | null = null;
+  const handlers: ((payload: NotificationPayload) => void)[] = [];
+  const seenIds = new Set<number>();
+
+  return {
+    on(_event: string, callback: (payload: NotificationPayload) => void) {
+      handlers.push(callback);
+    },
+    async start() {
+      const poll = async () => {
+        try {
+          const { data } = await api.get<{ id: number; type: string; title: string; body?: string }[]>(
+            '/notifications/unread',
+          );
+          for (const n of data) {
+            if (!seenIds.has(n.id)) {
+              seenIds.add(n.id);
+              const payload: NotificationPayload = { type: n.type, title: n.title, body: n.body };
+              handlers.forEach((h) => h(payload));
+            }
+          }
+        } catch {
+          // ignore poll errors
+        }
+      };
+      await poll();
+      intervalId = setInterval(poll, POLL_INTERVAL_MS);
+    },
+    async stop() {
+      if (intervalId) {
+        clearInterval(intervalId);
+        intervalId = null;
+      }
+      seenIds.clear();
+    },
+  };
+}
+
 export function createNotificationConnection(): NotificationConnection {
   if (config.webSocketUrl) {
     return createWebSocketConnection();
   }
-  return createSignalRConnection();
+  return createPollingConnection();
 }
